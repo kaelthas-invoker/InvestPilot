@@ -44,9 +44,10 @@ def test_invest_pilot_status_via_cli_runner(runner: CliRunner) -> None:
 
 
 def test_invest_pilot_help_via_cli_runner(runner: CliRunner) -> None:
-    """无参数时 Typer 应显示帮助（含 status 子命令）."""
+    """无参数时 Typer 应显示帮助（含 chat 与 status 子命令）."""
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
+    assert "chat" in result.output
     assert "status" in result.output
 
 

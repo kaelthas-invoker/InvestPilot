@@ -22,9 +22,21 @@ def status() -> None:
 
 @app.command()
 def chat() -> None:
-    """启动 TUI 多轮聊天（Task 6 实现）。"""
-    typer.echo("chat 尚未实现", err=True)
-    raise typer.Exit(code=1)
+    """启动全屏 TUI 多轮聊天。"""
+    from investpilot.assistant.session import ChatSession
+    from investpilot.core.config import load_config
+    from investpilot.core.errors import ConfigError
+    from investpilot.interface.tui_app import run_tui
+    from investpilot.providers.factory import build_provider
+
+    try:
+        cfg = load_config()
+    except ConfigError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    provider = build_provider(cfg)
+    session = ChatSession(provider)
+    run_tui(session, provider=cfg.provider, model=cfg.model)
 
 
 def main() -> None:

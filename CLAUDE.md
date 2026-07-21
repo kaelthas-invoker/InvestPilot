@@ -21,11 +21,11 @@ InvestPilot 是一个面向投资研究和交易研究的个人 AI 助手。
 
 - 语言：Python 3.12+。
 - 包管理与运行：`uv`。
-- CLI/TUI：以 `fin-agent` 为入口；TUI 库按 MVP 需要选择，优先简单可维护。
+- CLI/TUI：以 `invest-pilot` 为入口；TUI 库按 MVP 需要选择，优先简单可维护。
 - AI 调用：先封装小模型客户端边界，再接具体 provider。
 - 质量工具：`pytest`、`ruff`；依赖变化必须同步 `uv.lock`。
 
-常用命令：`uv sync`、`uv run fin-agent --help`、`uv run pytest`、`uv run ruff check .`。
+常用命令：`uv sync`、`uv run invest-pilot --help`、`uv run invest-pilot chat`、`uv run pytest`、`uv run ruff check .`。
 
 ## 文档管理
 
