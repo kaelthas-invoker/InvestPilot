@@ -37,3 +37,5 @@ class ChatSession:
             yield chunk
         if not errored and parts:
             self._messages.append(Message("assistant", "".join(parts)))
+        elif errored or not parts:
+            self._messages.append(Message("assistant", "[错误：生成失败]"))

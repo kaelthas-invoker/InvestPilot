@@ -96,16 +96,19 @@ class InvestPilotApp(App[None]):
             self._append_line(format_user_line(text))
             reply = self._append_line(format_assistant_prefix())
             parts: list[str] = []
-            async for chunk in self._session.send(text):
-                if chunk.kind == "text" and chunk.text:
-                    parts.append(chunk.text)
-                    reply.update(format_assistant_prefix() + "".join(parts))
-                    reply.scroll_visible()
-                elif chunk.kind == "error":
-                    msg = chunk.text or "未知错误"
-                    if parts:
+            try:
+                async for chunk in self._session.send(text):
+                    if chunk.kind == "text" and chunk.text:
+                        parts.append(chunk.text)
                         reply.update(format_assistant_prefix() + "".join(parts))
-                    self._append_line(f"错误: {msg}")
+                        reply.scroll_visible()
+                    elif chunk.kind == "error":
+                        msg = chunk.text or "未知错误"
+                        if parts:
+                            reply.update(format_assistant_prefix() + "".join(parts))
+                        self._append_line(f"错误: {msg}")
+            except Exception as exc:
+                self._append_line(f"错误: {exc}")
         finally:
             self._busy = False
             inp.disabled = False

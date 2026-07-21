@@ -35,7 +35,7 @@ async def test_two_turns_keep_history() -> None:
 
 
 @pytest.mark.asyncio
-async def test_error_does_not_append_assistant() -> None:
+async def test_error_appends_assistant_placeholder() -> None:
     class ErrP:
         async def stream_chat(self, messages):
             yield StreamChunk("error", "boom")
@@ -43,4 +43,17 @@ async def test_error_does_not_append_assistant() -> None:
 
     s = ChatSession(ErrP())
     _ = [c async for c in s.send("x")]
-    assert [m.role for m in s.messages] == ["system", "user"]
+    assert [m.role for m in s.messages] == ["system", "user", "assistant"]
+    assert s.messages[-1].content == "[错误：生成失败]"
+
+
+@pytest.mark.asyncio
+async def test_empty_success_appends_assistant_placeholder() -> None:
+    class EmptyP:
+        async def stream_chat(self, messages):
+            yield StreamChunk("done")
+
+    s = ChatSession(EmptyP())
+    _ = [c async for c in s.send("x")]
+    assert [m.role for m in s.messages] == ["system", "user", "assistant"]
+    assert s.messages[-1].content == "[错误：生成失败]"

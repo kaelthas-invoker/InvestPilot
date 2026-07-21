@@ -34,7 +34,8 @@ def load_config(
     if provider not in {"anthropic", "openai"}:
         raise ConfigError(f"不支持的 provider: {provider!r}，请使用 anthropic 或 openai")
     model = str(raw.get("model") or DEFAULT_MODEL)
-    max_tokens = int(raw.get("max_tokens") or DEFAULT_MAX_TOKENS)
+    raw_max = raw.get("max_tokens")
+    max_tokens = DEFAULT_MAX_TOKENS if raw_max is None else int(raw_max)
     api_key = _resolve_api_key(provider, raw, env)
     base_url = _resolve_base_url(provider, raw, env)
     return AppConfig(
