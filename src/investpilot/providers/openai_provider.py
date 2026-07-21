@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator
 from typing import Any
 
 from openai import OpenAI
 
-from investpilot.providers.base import Message, StreamChunk
+from investpilot.providers.base import Message, StreamChunk, iterate_sync_stream
 
 
 class OpenAIProvider:
@@ -34,28 +34,14 @@ class OpenAIProvider:
                 max_tokens=self._max_tokens,
                 stream=True,
             )
-            async for chunk in _iterate_sync_stream(stream):
-                if not chunk.choices:
+            async for chunk in iterate_sync_stream(stream):
+                choices = getattr(chunk, "choices", None) or []
+                if not choices:
                     continue
-                text = chunk.choices[0].delta.content
+                delta = getattr(choices[0], "delta", None)
+                text = getattr(delta, "content", None) if delta is not None else None
                 if text:
                     yield StreamChunk("text", text)
         except Exception as exc:
             yield StreamChunk("error", f"OpenAI 调用失败: {exc}")
         yield StreamChunk("done")
-
-
-async def _iterate_sync_stream(stream: Iterator[Any]) -> AsyncIterator[Any]:
-    it = iter(stream)
-
-    def _next() -> Any:
-        try:
-            return next(it)
-        except StopIteration:
-            return None
-
-    while True:
-        item = await asyncio.to_thread(_next)
-        if item is None:
-            break
-        yield item

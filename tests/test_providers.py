@@ -90,3 +90,83 @@ def test_build_provider_openai() -> None:
 def test_build_provider_anthropic() -> None:
     cfg = AppConfig("anthropic", "m", 1, "k", "https://example.com/anthropic")
     assert isinstance(build_provider(cfg), AnthropicProvider)
+
+
+class _RaisingOpenAIClient:
+    def __init__(self) -> None:
+        self.chat = self
+        self.completions = self
+
+    def create(self, **kwargs):
+        raise RuntimeError("boom-openai")
+
+
+class _RaisingAnthropicMessages:
+    def create(self, **kwargs):
+        raise RuntimeError("boom-anthropic")
+
+
+class _RaisingAnthropicClient:
+    def __init__(self) -> None:
+        self.messages = _RaisingAnthropicMessages()
+
+
+@pytest.mark.asyncio
+async def test_openai_provider_error_then_done() -> None:
+    p = OpenAIProvider("k", "https://example.com/v1", "m", 100, client=_RaisingOpenAIClient())
+    kinds: list[str] = []
+    texts: list[str] = []
+    async for ch in p.stream_chat([Message("user", "hi")]):
+        kinds.append(ch.kind)
+        texts.append(ch.text)
+    assert kinds == ["error", "done"]
+    assert "OpenAI 调用失败" in texts[0]
+    assert "boom-openai" in texts[0]
+
+
+@pytest.mark.asyncio
+async def test_anthropic_provider_error_then_done() -> None:
+    p = AnthropicProvider(
+        "k", "https://example.com/anthropic", "m", 100, client=_RaisingAnthropicClient()
+    )
+    kinds: list[str] = []
+    texts: list[str] = []
+    async for ch in p.stream_chat([Message("user", "hi")]):
+        kinds.append(ch.kind)
+        texts.append(ch.text)
+    assert kinds == ["error", "done"]
+    assert "Anthropic 调用失败" in texts[0]
+    assert "boom-anthropic" in texts[0]
+
+
+@pytest.mark.asyncio
+async def test_openai_provider_skips_null_delta_content() -> None:
+    class _NullDeltaStream:
+        def __iter__(self):
+            choice = type("C", (), {"delta": type("D", (), {})()})()
+            yield type("Chunk", (), {"choices": [choice]})()
+            delta = type("D", (), {"content": "ok"})()
+            choice2 = type("C", (), {"delta": delta})()
+            yield type("Chunk", (), {"choices": [choice2]})()
+
+    class _Client:
+        chat = None
+        completions = None
+
+        def __init__(self) -> None:
+            self.chat = self
+            self.completions = self
+
+        def create(self, **kwargs):
+            return _NullDeltaStream()
+
+    p = OpenAIProvider("k", "https://example.com/v1", "m", 100, client=_Client())
+    out: list[str] = []
+    kinds: list[str] = []
+    async for ch in p.stream_chat([Message("user", "hi")]):
+        kinds.append(ch.kind)
+        if ch.kind == "text":
+            out.append(ch.text)
+    assert "".join(out) == "ok"
+    assert "error" not in kinds
+    assert kinds[-1] == "done"

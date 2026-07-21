@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator
 from typing import Any
 
 from anthropic import NOT_GIVEN, Anthropic
 
-from investpilot.providers.base import Message, StreamChunk
+from investpilot.providers.base import Message, StreamChunk, iterate_sync_stream
 
 
 class AnthropicProvider:
@@ -39,7 +39,7 @@ class AnthropicProvider:
                 messages=api_messages,
                 stream=True,
             )
-            async for event in _iterate_sync_stream(stream):
+            async for event in iterate_sync_stream(stream):
                 if getattr(event, "type", None) != "content_block_delta":
                     continue
                 delta = getattr(event, "delta", None)
@@ -51,19 +51,3 @@ class AnthropicProvider:
         except Exception as exc:
             yield StreamChunk("error", f"Anthropic 调用失败: {exc}")
         yield StreamChunk("done")
-
-
-async def _iterate_sync_stream(stream: Iterator[Any]) -> AsyncIterator[Any]:
-    it = iter(stream)
-
-    def _next() -> Any:
-        try:
-            return next(it)
-        except StopIteration:
-            return None
-
-    while True:
-        item = await asyncio.to_thread(_next)
-        if item is None:
-            break
-        yield item
