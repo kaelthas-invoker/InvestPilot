@@ -173,6 +173,8 @@ config.yaml
 `pyproject.toml` 更新:
 ```toml
 version = "0.2.0"
+# [project.scripts]
+# invest-pilot = "investpilot.cli.main:app"
 dependencies = [
     "typer>=0.12.0",
     "textual>=1.0.0",
