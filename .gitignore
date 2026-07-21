@@ -216,3 +216,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Claude Code local
+.claude/.DS_Store
+.claude/settings.local.json
+.claude/worktrees/
+.claude/backups/
+
+# macOS
+.DS_Store
