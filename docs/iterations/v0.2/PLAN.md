@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- 入口脚本名保持 `fin-agent`
+- 入口脚本名：`invest-pilot`（不再使用 `fin-agent`）
 - 版本 bump 至 `0.2.0`
 - `config.example.yaml` 入库；`config.yaml` 必须 gitignore
 - 禁止读取 `~/.claude/env.d/minimax.env` 与 `active.env`
@@ -68,7 +68,7 @@
 - Test: `tests/test_smoke.py`
 
 **Interfaces:**
-- Produces: `investpilot.__version__ == "0.2.0"`；`fin-agent status` 打印三行；`ConfigError`/`ProviderError` 异常类
+- Produces: `investpilot.__version__ == "0.2.0"`；`invest-pilot status` 打印三行；`ConfigError`/`ProviderError` 异常类
 
 - [ ] **Step 1: 写/更新失败测试（version + status 文案）**
 
@@ -818,7 +818,7 @@ git commit -m "feat: add Textual chat TUI shell"
 - Modify: `README.md`
 
 **Interfaces:**
-- `fin-agent chat`：`load_config()` → `build_provider` → `ChatSession` → `run_tui`
+- `invest-pilot chat`：`load_config()` → `build_provider` → `ChatSession` → `run_tui`
 - `ConfigError` → stderr 中文 + exit 1
 - 无 args 时 help 含 `chat` 与 `status`
 
@@ -876,7 +876,7 @@ README 更新安装/运行：
 cp config.example.yaml config.yaml
 # 编辑 config.yaml；export ANTHROPIC_AUTH_TOKEN=... 或 OPENAI_API_KEY=...
 uv sync
-uv run fin-agent chat
+uv run invest-pilot chat
 ```
 
 - [ ] **Step 4: 全量验证**
@@ -885,8 +885,8 @@ Run:
 ```bash
 uv run pytest
 uv run ruff check .
-uv run fin-agent status
-uv run fin-agent --help
+uv run invest-pilot status
+uv run invest-pilot --help
 ```
 Expected: 全绿；status 显示 v0.2.0
 
@@ -894,7 +894,7 @@ Expected: 全绿；status 显示 v0.2.0
 ```bash
 cp config.example.yaml config.yaml
 # 配置 key 后
-uv run fin-agent chat
+uv run invest-pilot chat
 # 连续两轮对话，确认流式与上下文
 ```
 
@@ -902,7 +902,7 @@ uv run fin-agent chat
 
 ```bash
 git add src/investpilot/cli/main.py tests/test_cli.py tests/test_smoke.py README.md
-git commit -m "feat: wire fin-agent chat to TUI session"
+git commit -m "feat: wire invest-pilot chat to TUI session"
 ```
 
 ---
@@ -948,7 +948,7 @@ git commit -m "fix: close v0.2 acceptance gaps"
 | openai + anthropic | 3 |
 | config.example + gitignore config.yaml | 1, 2 |
 | 不读 ~/.claude/env.d | 2（仅 env + yaml） |
-| fin-agent chat/status | 1, 6 |
+| invest-pilot chat/status | 1, 6 |
 | 错误可恢复会话 | 4, 5 |
 | pytest/ruff | 各 task + 7 |
 | 版本 0.2.0 | 1 |

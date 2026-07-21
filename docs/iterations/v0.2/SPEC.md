@@ -21,7 +21,7 @@
 
 | 项 | 说明 |
 |----|------|
-| 入口 | `fin-agent` / `fin-agent chat` 启动 TUI；保留 `fin-agent status` |
+| 入口 | `invest-pilot` / `invest-pilot chat` 启动 TUI；保留 `invest-pilot status` |
 | TUI | Textual 全屏：可滚动 transcript + 底部输入 |
 | 多轮 | 进程内 message history；第二轮起带上文 |
 | 流式 | provider 流式增量写入 UI |
@@ -176,7 +176,7 @@ max_tokens: 4096
 
 - Python ≥ 3.12，`uv`
 - 依赖：`typer`、`textual`、`openai`、`anthropic`、`pyyaml`（或等价）
-- 入口：`fin-agent = investpilot.cli.main:app`（或等价，保持脚本名）
+- 入口：`invest-pilot = investpilot.cli.main:app`
 - 版本：实现时 bump 至 `0.2.0`（与交付切片一致）
 
 建议目录（实现可微调，保持分层名）：
@@ -200,7 +200,7 @@ config.yaml                 # gitignore
 
 ## 9. 验收标准
 
-1. 复制 `config.example.yaml` → `config.yaml`，配置 provider/model，并用环境变量或 config 提供 key 后，`uv run fin-agent chat` 进入全屏 TUI。
+1. 复制 `config.example.yaml` → `config.yaml`，配置 provider/model，并用环境变量或 config 提供 key 后，`uv run invest-pilot chat` 进入全屏 TUI。
 2. 同一进程内连续 ≥2 轮对话；第 2 轮回复能利用第 1 轮上下文（可用“请重复我上句的关键词”类人工/集成验证）。
 3. 助手回复以流式增量显示，而非仅结束后整段弹出。
 4. `config.yaml` 中 `provider: openai` 与 `provider: anthropic` 均可完成至少一轮真实或契约级流式对话（自动化以 mock 为主；真实 key 可选手工）。
