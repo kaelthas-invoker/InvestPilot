@@ -36,7 +36,6 @@ class InvestPilotApp(App[None]):
         height: auto;
         color: #35C4E8;
         display: none;
-        white-space: pre;
     }
     #thinking.active {
         display: block;
