@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -8,6 +9,8 @@ from anthropic import NOT_GIVEN, Anthropic
 
 from investpilot.providers.base import Message, StreamChunk, iterate_sync_stream
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class AnthropicProvider:
     def __init__(
@@ -49,5 +52,6 @@ class AnthropicProvider:
                 if text:
                     yield StreamChunk("text", text)
         except Exception as exc:
+            logger.error(f"Anthropic 调用失败: {exc}")
             yield StreamChunk("error", f"Anthropic 调用失败: {exc}")
         yield StreamChunk("done")

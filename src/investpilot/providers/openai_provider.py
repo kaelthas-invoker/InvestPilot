@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
 from openai import OpenAI
 
 from investpilot.providers.base import Message, StreamChunk, iterate_sync_stream
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class OpenAIProvider:
@@ -43,5 +47,6 @@ class OpenAIProvider:
                 if text:
                     yield StreamChunk("text", text)
         except Exception as exc:
+            logger.error(f"OpenAI 调用失败: {exc}")
             yield StreamChunk("error", f"OpenAI 调用失败: {exc}")
         yield StreamChunk("done")
