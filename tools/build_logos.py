@@ -408,9 +408,12 @@ def draw_small_variant(size_label: str) -> Image.Image:
             nose=True, whiskers=1, base_line=True, mouth="w",
         ),
         "10x6": dict(
+            # v0.2.9: enable every feature that's in the big 16×9 logo so
+            # this variant reaches the ≥60 % similarity bar.
             cells_w=10, cells_h=6,
-            forehead_arc=False, eye_w=1.4, eye_h=0.9, cheeks=False,
-            nose=True, whiskers=1, base_line=True, mouth="smile",
+            forehead_arc=True, eye_w=1.5, eye_h=1.0, cheeks=True,
+            nose=True, whiskers=2, base_line=True, mouth="w",
+            face_shape="rect",
         ),
         "8x5": dict(
             cells_w=8, cells_h=5,
@@ -714,11 +717,15 @@ def write_preview_pngs(head_img: Image.Image, small_imgs: dict[str, list[Image.I
 # ---------------------------------------------------------------------------
 
 def build(preview_only: bool = False, include_size_variants: bool = True) -> None:
-    # v0.2.8: the boot big logo is the 16×9 head artwork (locked at
-    # v0.2.5-mini); the runtime small mascot has been promoted to the
-    # user's chosen 8×5 variant (round-ellipse face).
-    MASCOT_SIZE = "8x5"
-    MASCOT_CW, MASCOT_CH = 8, 5
+    # v0.2.9: redesign small logo.
+    # Constraints (user feedback):
+    #   - max side ≤ 10 cells
+    #   - ≥60 % visual similarity to the 16×9 boot big logo
+    # Chosen size: 10×6 (max side = 10, comfortably fits the full
+    # big-logo feature set: ears + forehead arc + eyes + cheeks + nose
+    # + w-mouth + 2 whiskers / side + base line).
+    MASCOT_SIZE = "10x6"
+    MASCOT_CW, MASCOT_CH = 10, 6
 
     head_img = draw_head()
     mascot_base_img = draw_small_variant(MASCOT_SIZE)
