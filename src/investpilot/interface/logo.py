@@ -96,6 +96,26 @@ def render_small_frame(name: str, frame_index: int) -> str:
     return _render_grid(rows, SMALL_CELLS_W, SMALL_CELLS_H)
 
 
+# v0.2.6 size variants — see _logo_assets.SMALL_VARIANT_BASE for grids.
+VARIANT_SIZES: dict[str, tuple[int, int]] = dict(_logo_assets.VARIANT_SIZES)
+
+
+def render_variant(size_label: str) -> str:
+    """Render a size-variant small logo (e.g. ``"12x7"``).
+
+    These variants are matched in style to the v0.2.5-mini big logo but
+    drawn at smaller cell grids for review.
+    """
+    if size_label not in _logo_assets.SMALL_VARIANT_BASE:
+        raise ValueError(
+            f"unknown variant size {size_label!r}; "
+            f"expected one of {list(_logo_assets.SMALL_VARIANT_BASE)}"
+        )
+    cw, ch = VARIANT_SIZES[size_label]
+    rows = _logo_assets.SMALL_VARIANT_BASE[size_label]
+    return _render_grid(rows, cw, ch)
+
+
 # ---------------------------------------------------------------------------
 # Module-level state used by the TUI tick loop.
 # ---------------------------------------------------------------------------
