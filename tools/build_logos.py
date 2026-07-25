@@ -157,6 +157,271 @@ def draw_head() -> Image.Image:
 
 
 # ---------------------------------------------------------------------------
+# Small-logo size variants (v0.2.6 user feedback)
+#
+# The big boot logo (draw_head()) is **pin-locked** at v0.2.5-mini: arched
+# forehead + 2×1 round eyes + full set of features.  The small mascot
+# logo is being designed to match the big logo's visual style at smaller
+# cell grids.  Each size drops features in proportion to its grid size.
+#
+#   16×9 → full detail (matches big logo, w/ forehead arc + cheek + 2×1 eyes)
+#   12×7 → no forehead arc, smaller cheeks, 1×1 eyes
+#   10×6 → drops cheeks, simpler mouth, 1 whisker/side
+#   8×5  → minimal icon (ears, 1×1 eyes, smile, base)
+# ---------------------------------------------------------------------------
+
+
+def _make_small_variant(cells_w: int, cells_h: int, *, features: dict) -> Image.Image:
+    """Draw a small cat at ``(cells_w, cells_h)`` choosing features.
+
+    ``features`` keys:
+        forehead_arc: bool  — top-half chord between ears
+        eye_w: float         — eye width in cells (≥ 1)
+        eye_h: float         — eye height in cells (≥ 0.5)
+        cheeks: bool         — cream cheek patches
+        nose: bool           — triangular nose
+        whiskers: int        — number of whiskers per side (0/1/2)
+        base_line: bool      — full-width black bar at the bottom
+        mouth: str           — "w" for w-mouth, "smile" for simple smile,
+                               "dot" for two tiny dots
+    """
+    SCALE = 8
+    W = cells_w * SCALE
+    H = cells_h * SCALE * 2
+    img = Image.new("RGB", (W, H), (255, 255, 255))
+    d = ImageDraw.Draw(img)
+
+    ORANGE = 1
+    DARK_O = 2
+    LIGHT = 3
+    DARK = 4
+    BLACK = 5
+
+    def px(x: float, y: float) -> tuple[int, int]:
+        return (int(x * SCALE), int(y * SCALE * 2))
+
+    # ---- Ears (always present, scaled) ---------------------------------
+    # Left ear outer triangle: vertices (ear_left_x0, 0.3), (ear_left_x1, 0.3),
+    # (ear_left_tip_x, ear_tip_y)
+    ear_left_x0 = max(0.3, cells_w * 0.05)
+    ear_left_x1 = max(ear_left_x0 + 2, cells_w * 0.35)
+    ear_left_tip_x = (ear_left_x0 + ear_left_x1) / 2
+    ear_right_x1 = min(cells_w - 0.3, cells_w * 0.95)
+    ear_right_x0 = min(ear_right_x1 - 2, cells_w * 0.65)
+    ear_right_tip_x = (ear_right_x0 + ear_right_x1) / 2
+    ear_tip_y = cells_h * 0.27   # ~2 cells
+
+    d.polygon([px(ear_left_x0, 0.3), px(ear_left_x1, 0.3),
+               px(ear_left_tip_x, ear_tip_y)], fill=PAL_RGB[DARK_O])
+    d.polygon([px(ear_right_x0, 0.3), px(ear_right_x1, 0.3),
+               px(ear_right_tip_x, ear_tip_y)], fill=PAL_RGB[DARK_O])
+    d.polygon([px(ear_left_x0 + 0.6, 0.55), px(ear_left_x1 - 0.6, 0.55),
+               px(ear_left_tip_x, ear_tip_y * 0.7)],
+              fill=PAL_RGB[ORANGE])
+    d.polygon([px(ear_right_x0 + 0.6, 0.55), px(ear_right_x1 - 0.6, 0.55),
+               px(ear_right_tip_x, ear_tip_y * 0.7)],
+              fill=PAL_RGB[ORANGE])
+    # Light inner-ear only on bigger sizes (skip for 8×5)
+    if cells_w >= 10:
+        d.polygon([px(ear_left_x0 + 1.0, 0.75), px(ear_left_x1 - 1.0, 0.75),
+                   px(ear_left_tip_x, ear_tip_y * 0.55)],
+                  fill=PAL_RGB[LIGHT])
+        d.polygon([px(ear_right_x0 + 1.0, 0.75), px(ear_right_x1 - 1.0, 0.75),
+                   px(ear_right_tip_x, ear_tip_y * 0.55)],
+                  fill=PAL_RGB[LIGHT])
+
+    # ---- Face (always present, with horizontal padding) ----------------
+    pad_x = 0.5 if cells_w >= 10 else 0.4
+    pad_top = 1.5 if cells_h >= 7 else 1.0
+    pad_bottom = 1.0 if cells_h >= 5 else 0.5
+    face_x0 = pad_x
+    face_x1 = cells_w - pad_x
+    face_y0 = pad_top
+    face_y1 = cells_h - pad_bottom
+    radius = min(face_x1 - face_x0, face_y1 - face_y0) * 0.28
+    d.rounded_rectangle(
+        [px(face_x0, face_y0), px(face_x1, face_y1)],
+        radius=radius,
+        fill=PAL_RGB[ORANGE],
+    )
+
+    # Re-paint ears on top of face fill.
+    d.polygon([px(ear_left_x0, 0.3), px(ear_left_x1, 0.3),
+               px(ear_left_tip_x, ear_tip_y)], fill=PAL_RGB[DARK_O])
+    d.polygon([px(ear_right_x0, 0.3), px(ear_right_x1, 0.3),
+               px(ear_right_tip_x, ear_tip_y)], fill=PAL_RGB[DARK_O])
+    d.polygon([px(ear_left_x0 + 0.6, 0.55), px(ear_left_x1 - 0.6, 0.55),
+               px(ear_left_tip_x, ear_tip_y * 0.7)],
+              fill=PAL_RGB[ORANGE])
+    d.polygon([px(ear_right_x0 + 0.6, 0.55), px(ear_right_x1 - 0.6, 0.55),
+               px(ear_right_tip_x, ear_tip_y * 0.7)],
+              fill=PAL_RGB[ORANGE])
+    if cells_w >= 10:
+        d.polygon([px(ear_left_x0 + 1.0, 0.75), px(ear_left_x1 - 1.0, 0.75),
+                   px(ear_left_tip_x, ear_tip_y * 0.55)],
+                  fill=PAL_RGB[LIGHT])
+        d.polygon([px(ear_right_x0 + 1.0, 0.75), px(ear_right_x1 - 1.0, 0.75),
+                   px(ear_right_tip_x, ear_tip_y * 0.55)],
+                  fill=PAL_RGB[LIGHT])
+
+    # ---- Forehead micro-arc (only 16×9 has it) --------------------------
+    if features["forehead_arc"]:
+        arc_pad = 2.0 if cells_w >= 12 else 1.5
+        d.chord(
+            [px(cells_w / 2 - cells_w * 0.4 + arc_pad * 0, 0.4),
+             px(cells_w - arc_pad, face_y0 + 1.0)],
+            180, 360, fill=PAL_RGB[ORANGE],
+        )
+        # Re-paint ears on top of the chord.
+        d.polygon([px(ear_left_x0, 0.3), px(ear_left_x1, 0.3),
+                   px(ear_left_tip_x, ear_tip_y)], fill=PAL_RGB[DARK_O])
+        d.polygon([px(ear_right_x0, 0.3), px(ear_right_x1, 0.3),
+                   px(ear_right_tip_x, ear_tip_y)], fill=PAL_RGB[DARK_O])
+        d.polygon([px(ear_left_x0 + 0.6, 0.55), px(ear_left_x1 - 0.6, 0.55),
+                   px(ear_left_tip_x, ear_tip_y * 0.7)],
+                  fill=PAL_RGB[ORANGE])
+        d.polygon([px(ear_right_x0 + 0.6, 0.55), px(ear_right_x1 - 0.6, 0.55),
+                   px(ear_right_tip_x, ear_tip_y * 0.7)],
+                  fill=PAL_RGB[ORANGE])
+        if cells_w >= 12:
+            d.polygon([px(ear_left_x0 + 1.0, 0.75), px(ear_left_x1 - 1.0, 0.75),
+                       px(ear_left_tip_x, ear_tip_y * 0.55)],
+                      fill=PAL_RGB[LIGHT])
+            d.polygon([px(ear_right_x0 + 1.0, 0.75), px(ear_right_x1 - 1.0, 0.75),
+                       px(ear_right_tip_x, ear_tip_y * 0.55)],
+                      fill=PAL_RGB[LIGHT])
+
+    # ---- Eyes ----------------------------------------------------------
+    eye_w = features["eye_w"]
+    eye_h = features["eye_h"]
+    eye_y = face_y0 + (face_y1 - face_y0) * 0.42
+    # Distance between the two eyes scales with grid width.
+    eye_spacing_x = cells_w * 0.34
+    center_x = cells_w / 2
+    eye_left_x = center_x - eye_spacing_x / 2 - eye_w / 2
+    eye_right_x = center_x + eye_spacing_x / 2 - eye_w / 2
+    d.ellipse([px(eye_left_x, eye_y), px(eye_left_x + eye_w, eye_y + eye_h)],
+              fill=PAL_RGB[BLACK])
+    d.ellipse([px(eye_right_x, eye_y), px(eye_right_x + eye_w, eye_y + eye_h)],
+              fill=PAL_RGB[BLACK])
+
+    # ---- Cheek highlights (when enabled) -------------------------------
+    if features["cheeks"]:
+        cheek_y = eye_y + eye_h + 0.3
+        d.ellipse([px(face_x0 + 0.5, cheek_y),
+                   px(face_x0 + 0.5 + cells_w * 0.25, cheek_y + cells_h * 0.18)],
+                  fill=PAL_RGB[LIGHT])
+        d.ellipse([px(face_x1 - 0.5 - cells_w * 0.25, cheek_y),
+                   px(face_x1 - 0.5, cheek_y + cells_h * 0.18)],
+                  fill=PAL_RGB[LIGHT])
+
+    # ---- Nose (when enabled) -------------------------------------------
+    if features["nose"]:
+        nose_y = eye_y + eye_h + 0.05
+        nose_w = 0.8
+        d.polygon(
+            [px(center_x - nose_w / 2, nose_y), px(center_x + nose_w / 2, nose_y),
+             px(center_x, nose_y + 0.6)],
+            fill=PAL_RGB[DARK],
+        )
+
+    # ---- Mouth ---------------------------------------------------------
+    mouth_kind = features["mouth"]
+    if mouth_kind == "w":
+        mouth_y = eye_y + eye_h + 0.7
+        # w-shape: two soft zigzag (left → down → up → down → up → right)
+        d.line(
+            [px(center_x - 0.85, mouth_y), px(center_x - 0.55, mouth_y + 0.5),
+             px(center_x, mouth_y + 0.3), px(center_x + 0.55, mouth_y + 0.5),
+             px(center_x + 0.85, mouth_y)],
+            fill=PAL_RGB[DARK], width=2,
+        )
+    elif mouth_kind == "smile":
+        mouth_y = eye_y + eye_h + 0.9
+        d.arc(
+            [px(center_x - 0.8, mouth_y - 0.2), px(center_x + 0.8, mouth_y + 0.4)],
+            start=20, end=160, fill=PAL_RGB[DARK], width=2,
+        )
+    elif mouth_kind == "dot":
+        d.ellipse([px(center_x - 0.3, eye_y + eye_h + 0.6),
+                   px(center_x + 0.3, eye_y + eye_h + 0.9)],
+                  fill=PAL_RGB[DARK])
+
+    # ---- Whiskers (0/1/2 per side) -------------------------------------
+    n_whiskers = features["whiskers"]
+    if n_whiskers >= 1:
+        for wy_rel in (0.65, 0.85)[:n_whiskers]:
+            wy = eye_y + eye_h + wy_rel
+            d.line([px(face_x0 + 0.6, wy), px(0.5, wy)], fill=PAL_RGB[DARK], width=1)
+            d.line([px(face_x1 - 0.6, wy), px(cells_w - 0.5, wy)],
+                   fill=PAL_RGB[DARK], width=1)
+
+    # ---- Base line -----------------------------------------------------
+    if features["base_line"]:
+        d.rectangle([px(0, cells_h - 0.6), px(cells_w, cells_h)],
+                    fill=PAL_RGB[BLACK])
+
+    return img
+
+
+# ---- Public dispatch for small variants -----------------------------------
+
+SMALL_VARIANT_SIZES: tuple[tuple[int, int], ...] = (
+    (16, 9),
+    (12, 7),
+    (10, 6),
+    (8, 5),
+)
+
+
+def draw_small_variant(size_label: str) -> Image.Image:
+    """Generate a small cat head at the requested size.
+
+    ``size_label`` is a key like ``"16x9"``, ``"12x7"``, ``"10x6"``, ``"8x5"``.
+    Each size follows the big-logo visual style with features scaled to
+    the grid size.
+    """
+    table = {
+        "16x9": dict(
+            cells_w=16, cells_h=9,
+            forehead_arc=True, eye_w=2.0, eye_h=1.0, cheeks=True,
+            nose=True, whiskers=2, base_line=True, mouth="w",
+        ),
+        "12x7": dict(
+            cells_w=12, cells_h=7,
+            forehead_arc=False, eye_w=1.6, eye_h=1.0, cheeks=True,
+            nose=True, whiskers=1, base_line=True, mouth="w",
+        ),
+        "10x6": dict(
+            cells_w=10, cells_h=6,
+            forehead_arc=False, eye_w=1.4, eye_h=0.9, cheeks=False,
+            nose=True, whiskers=1, base_line=True, mouth="smile",
+        ),
+        "8x5": dict(
+            cells_w=8, cells_h=5,
+            forehead_arc=False, eye_w=1.2, eye_h=0.9, cheeks=False,
+            nose=False, whiskers=0, base_line=True, mouth="smile",
+        ),
+    }
+    if size_label not in table:
+        raise ValueError(f"unknown small variant size: {size_label!r}")
+    spec = table[size_label]
+    return _make_small_variant(
+        spec["cells_w"], spec["cells_h"],
+        features={
+            "forehead_arc": spec["forehead_arc"],
+            "eye_w": spec["eye_w"], "eye_h": spec["eye_h"],
+            "cheeks": spec["cheeks"], "nose": spec["nose"],
+            "whiskers": spec["whiskers"], "base_line": spec["base_line"],
+            "mouth": spec["mouth"],
+        },
+    )
+
+
+SMALL_VARIANT_PREVIEW_NAMES = tuple(f"small_variant_{w}x{h}" for w, h in SMALL_VARIANT_SIZES)
+
+
+# ---------------------------------------------------------------------------
 # Combined blink + ear animation
 # ---------------------------------------------------------------------------
 
@@ -378,7 +643,7 @@ def write_preview_pngs(head_img: Image.Image, small_imgs: dict[str, list[Image.I
 # Driver
 # ---------------------------------------------------------------------------
 
-def build(preview_only: bool = False) -> None:
+def build(preview_only: bool = False, include_size_variants: bool = True) -> None:
     head_img = draw_head()
 
     small_frames_imgs: dict[str, list[Image.Image]] = {}
@@ -396,7 +661,22 @@ def build(preview_only: bool = False) -> None:
     if not preview_only:
         write_assets_py(head_grid, small_frames_grids)
     write_preview_pngs(head_img, small_frames_imgs)
+
+    # v0.2.6 user feedback: render small-logo size variants (preview only)
+    # so the user can pick a smaller cell grid for the mascot animation.
+    variant_pngs: list[tuple[str, Path]] = []
+    if include_size_variants:
+        PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
+        for label in SMALL_VARIANT_PREVIEW_NAMES:
+            size_label = label.replace("small_variant_", "").replace("x", "x")
+            size_label = label.split("small_variant_")[1]
+            img = draw_small_variant(size_label)
+            out = PREVIEW_DIR / f"{label}.png"
+            img.save(out)
+            variant_pngs.append((label, out))
+
     total_pngs = 1 + sum(len(frames) for frames in small_frames_imgs.values())
+    total_pngs += len(variant_pngs)
     print(f"Wrote {total_pngs} PNG previews to {PREVIEW_DIR}")
     if not preview_only:
         print(f"Wrote asset module to {ASSETS_PY}")
