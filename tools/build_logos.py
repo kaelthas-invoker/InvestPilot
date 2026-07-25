@@ -293,6 +293,10 @@ def _wave(img: Image.Image, frame: int) -> Image.Image:
     - frame 1: paw at chest level (next to face)
     - frame 2: paw WAY above head (high wave)
     - frame 3: paw at chest level
+
+    Every raised frame also paints a dark outline + 2 finger creases so
+    the paw reads as a distinct object against the orange face even at
+    the small 16-cell width.
     """
     img = img.copy()
     d = ImageDraw.Draw(img)
@@ -308,32 +312,47 @@ def _wave(img: Image.Image, frame: int) -> Image.Image:
     )
 
     if frame == 0:
-        # Re-draw the paw at the base position.
+        # Re-draw the paw at the base position with outline + creases.
         d.rounded_rectangle(
             [px(12.5, 7.5), px(15.5, 8.5)],
             radius=8, fill=PAL_RGB[1],
         )
+        d.rounded_rectangle(
+            [px(12.5, 7.5), px(15.5, 8.5)],
+            radius=8, outline=PAL_RGB[4], width=2,
+        )
         return img
 
-    # Frames 1 / 2 / 3: paw moves through clear vertical stops.
     heights = {1: 5.5, 2: 1.5, 3: 5.5}
     paw_y0 = heights[frame]
     paw_x0 = 13.0
     paw_x1 = 15.0
+    # Orange paw.
     d.rounded_rectangle(
         [px(paw_x0, paw_y0), px(paw_x1, paw_y0 + 1.1)],
         radius=8, fill=PAL_RGB[1],
     )
-    # Outline darker so it stands out against orange face.
-    d.rectangle(
-        [px(paw_x0 - 0.1, paw_y0 + 0.05), px(paw_x1 + 0.1, paw_y0 + 1.1)],
-        outline=PAL_RGB[2], width=1,
+    # Dark outline (≈DARK = #3B2A20) so the paw pops off the orange face.
+    d.rounded_rectangle(
+        [px(paw_x0, paw_y0), px(paw_x1, paw_y0 + 1.1)],
+        radius=8, outline=PAL_RGB[4], width=2,
     )
+    # Two finger creases (vertical dark lines) for higher-fidelity reading.
+    crease_xs = [13.6, 14.4]
+    for cx in crease_xs:
+        d.line(
+            [px(cx, paw_y0 + 0.15), px(cx, paw_y0 + 0.95)],
+            fill=PAL_RGB[4], width=1,
+        )
     return img
 
 
 def _ear(img: Image.Image, frame: int) -> Image.Image:
-    """Ears tilt back then return. Frame 0/2 = upright; 1/3 = tilted."""
+    """Ears tilt back then return. Frame 0/2 = upright; 1/3 = tilted.
+
+    Adds a dark-brown outline so the tilted ears stand out from the
+    cream/sky-tone backdrop.
+    """
     img = img.copy()
     if frame in (0, 2):
         return img  # base pose already drawn
@@ -351,35 +370,26 @@ def _ear(img: Image.Image, frame: int) -> Image.Image:
     d.polygon([px(11, 0.5), px(15, 0.5), px(12.5, 2.5)], fill=PAL_RGB[2])
     d.polygon([px(12, 0.8), px(14, 0.8), px(12.5, 2.2)], fill=PAL_RGB[1])
 
-    # Tilt both ears outward: left ear leans left, right ear leans right.
-    # Use a strong shift so the tilt is clearly visible.
-    tilt = 1.5 if frame == 1 else 1.8
-    # Left ear tilted left
-    d.polygon(
-        [px(1 - tilt, 0.5), px(5 - tilt, 0.5), px(3.5, 2.5)],
-        fill=PAL_RGB[2],
-    )
-    d.polygon(
-        [px(2 - tilt, 0.8), px(4 - tilt, 0.8), px(3.5, 2.2)],
-        fill=PAL_RGB[1],
-    )
-    d.polygon(
-        [px(2.4 - tilt, 1.0), px(3.6 - tilt, 1.0), px(3.5, 2.0)],
-        fill=PAL_RGB[3],
-    )
-    # Right ear tilted right
-    d.polygon(
-        [px(11 + tilt, 0.5), px(15 + tilt, 0.5), px(12.5, 2.5)],
-        fill=PAL_RGB[2],
-    )
-    d.polygon(
-        [px(12 + tilt, 0.8), px(14 + tilt, 0.8), px(12.5, 2.2)],
-        fill=PAL_RGB[1],
-    )
-    d.polygon(
-        [px(12.4 + tilt, 1.0), px(13.6 + tilt, 1.0), px(12.5, 2.0)],
-        fill=PAL_RGB[3],
-    )
+    # Tilt both ears outward. Strong tilt + dark outline make frames 1/3
+    # clearly distinguishable from base pose.
+    tilt = 1.8 if frame == 1 else 2.2
+    # Left ear tilted left with outline.
+    left_outer = [px(1 - tilt, 0.5), px(5 - tilt, 0.5), px(3.5, 2.5)]
+    d.polygon(left_outer, fill=PAL_RGB[2])
+    left_inner_orange = [px(2 - tilt, 0.8), px(4 - tilt, 0.8), px(3.5, 2.2)]
+    d.polygon(left_inner_orange, fill=PAL_RGB[1])
+    left_inner_light = [px(2.4 - tilt, 1.0), px(3.6 - tilt, 1.0), px(3.5, 2.0)]
+    d.polygon(left_inner_light, fill=PAL_RGB[3])
+    d.line(left_outer + [left_outer[0]], fill=PAL_RGB[4], width=2)
+
+    # Right ear tilted right with outline.
+    right_outer = [px(11 + tilt, 0.5), px(15 + tilt, 0.5), px(12.5, 2.5)]
+    d.polygon(right_outer, fill=PAL_RGB[2])
+    right_inner_orange = [px(12 + tilt, 0.8), px(14 + tilt, 0.8), px(12.5, 2.2)]
+    d.polygon(right_inner_orange, fill=PAL_RGB[1])
+    right_inner_light = [px(12.4 + tilt, 1.0), px(13.6 + tilt, 1.0), px(12.5, 2.0)]
+    d.polygon(right_inner_light, fill=PAL_RGB[3])
+    d.line(right_outer + [right_outer[0]], fill=PAL_RGB[4], width=2)
     return img
 
 
@@ -403,16 +413,24 @@ def _tail(img: Image.Image, frame: int) -> Image.Image:
 
     # Map frame index to a horizontal offset relative to base.
     # Use ±2-cell full offsets so the swing is unambiguous at terminal size.
-    offsets = [0, -2.0, 0, 2.0]  # frame 0/2 = centered
+    offsets = [0, -2.5, 0, 2.5]  # frame 0/2 = centered
     dx = offsets[frame]
 
-    # Draw new tail arc at shifted position.
+    # Draw new tail arc at shifted position with dark-brown outline + orange
+    # fill so it really pops off the orange face.
     arc_x0 = 12.5 + dx
     arc_x1 = 15.5 + dx
+    # Draw orange fill first.
     d.arc(
         [px(arc_x0, 5.2), px(arc_x1, 7.6)],
         start=270, end=90,
-        fill=PAL_RGB[2], width=5,
+        fill=PAL_RGB[2], width=4,
+    )
+    # Draw dark-brown thicker line on top.
+    d.arc(
+        [px(arc_x0 + 0.2, 5.2), px(arc_x1 + 0.2, 7.6)],
+        start=270, end=90,
+        fill=PAL_RGB[4], width=2,
     )
     return img
 
