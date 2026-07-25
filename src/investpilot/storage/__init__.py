@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from investpilot.storage.db import open_default_db
 from investpilot.storage.models import (
     MessageRecord,
@@ -10,7 +8,6 @@ from investpilot.storage.models import (
 )
 from investpilot.storage.preview import first_line_preview
 from investpilot.storage.repo import SessionRepository
-from investpilot.storage.timefmt import format_age
 
 __all__ = [
     "SessionRepository",
@@ -19,7 +16,6 @@ __all__ = [
     "MessageRecord",
     "SessionNotFound",
     "RepoError",
-    "format_age",
     "first_line_preview",
     "open_default_db",
 ]

@@ -4,7 +4,7 @@ from datetime import timedelta
 
 import pytest
 
-from investpilot.storage import format_age
+from investpilot.utils import format_age
 
 
 @pytest.mark.parametrize(

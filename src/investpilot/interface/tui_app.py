@@ -135,8 +135,6 @@ class InvestPilotApp(App[None]):
         head = Static(logo.render_big_head(), classes="msg", markup=True)
         self.query_one("#transcript", VerticalScroll).mount(head)
         self._append_line("InvestPilot 投研助手（研究辅助，不构成投资建议）")
-        if self._title_suffix:
-            self._append_line(f"模型: {self._title_suffix}")
         self.query_one("#chat-input", Input).focus()
 
         # Start the resident mascot ticker. The schedule walks a 24-frame

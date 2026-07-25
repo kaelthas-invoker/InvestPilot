@@ -8,7 +8,8 @@ from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Label, ListItem, ListView, Static
 
-from investpilot.storage import SessionListItem, SessionRepository, format_age
+from investpilot.storage import SessionListItem, SessionRepository
+from investpilot.utils import format_age
 
 
 class ResumeListScreen(ModalScreen[str | None]):
