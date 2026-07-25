@@ -238,12 +238,23 @@ def _make_small_variant(cells_w: int, cells_h: int, *, features: dict) -> Image.
     face_x1 = cells_w - pad_x
     face_y0 = pad_top
     face_y1 = cells_h - pad_bottom
-    radius = min(face_x1 - face_x0, face_y1 - face_y0) * 0.28
-    d.rounded_rectangle(
-        [px(face_x0, face_y0), px(face_x1, face_y1)],
-        radius=radius,
-        fill=PAL_RGB[ORANGE],
-    )
+
+    face_shape = features.get("face_shape", "rect")
+    if face_shape == "ellipse":
+        # True ellipse — fully rounded head (used by 8×5 for "圆润" look).
+        d.ellipse(
+            [px(face_x0, face_y0), px(face_x1, face_y1)],
+            fill=PAL_RGB[ORANGE],
+        )
+    else:
+        radius = min(face_x1 - face_x0, face_y1 - face_y0) * features.get(
+            "face_corner_radius", 0.28
+        )
+        d.rounded_rectangle(
+            [px(face_x0, face_y0), px(face_x1, face_y1)],
+            radius=radius,
+            fill=PAL_RGB[ORANGE],
+        )
 
     # Re-paint ears on top of face fill.
     d.polygon([px(ear_left_x0, 0.3), px(ear_left_x1, 0.3),
@@ -399,8 +410,9 @@ def draw_small_variant(size_label: str) -> Image.Image:
         ),
         "8x5": dict(
             cells_w=8, cells_h=5,
-            forehead_arc=False, eye_w=1.2, eye_h=0.9, cheeks=False,
+            forehead_arc=False, eye_w=1.0, eye_h=0.9, cheeks=False,
             nose=False, whiskers=0, base_line=True, mouth="smile",
+            face_shape="ellipse",  # v0.2.7: rounder face
         ),
     }
     if size_label not in table:
