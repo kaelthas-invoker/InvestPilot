@@ -30,6 +30,7 @@ def test_anthropic_auth_token_accepted(tmp_path: Path, monkeypatch: pytest.Monke
     cfg_path = tmp_path / "config.yaml"
     cfg_path.write_text(yaml.dump({"provider": "anthropic"}), encoding="utf-8")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_BASE_URL", raising=False)
     monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "tok-test")
     cfg = load_config(cfg_path, environ=os.environ)
     assert cfg.api_key == "tok-test"

@@ -52,7 +52,7 @@ def test_invest_pilot_help_via_cli_runner(runner: CliRunner) -> None:
 
 
 def test_package_version() -> None:
-    """investpilot.__version__ 应等于 '0.2.0'."""
+    """investpilot.__version__ 应等于 '0.2.1'."""
     import investpilot
 
-    assert investpilot.__version__ == "0.2.0"
+    assert investpilot.__version__ == "0.2.1"
