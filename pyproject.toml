@@ -1,6 +1,6 @@
 [project]
 name = "investpilot"
-version = "0.2.1"
+version = "0.2.2"
 description = "InvestPilot — A+H 双重市场投研顾问 agent"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -28,6 +28,7 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=5.0.0",
     "ruff>=0.6.0",
+    "pillow>=10.0.0",
 ]
 
 [tool.ruff]
