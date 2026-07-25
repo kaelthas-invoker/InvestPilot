@@ -390,50 +390,29 @@ SMALL_VARIANT_SIZES: tuple[tuple[int, int], ...] = (
 
 
 def draw_small_variant(size_label: str) -> Image.Image:
-    """Generate a small cat head at the requested size.
+    """Generate a small cat head by **scaling down** the big boot logo.
 
-    ``size_label`` is a key like ``"16x9"``, ``"12x7"``, ``"10x6"``, ``"8x5"``.
-    Each size follows the big-logo visual style with features scaled to
-    the grid size.
+    v0.2.10 user feedback (forced change): the previous re-drawn-from-
+    scratch variants looked completely unlike the big logo.  The fix is
+    to use the big logo's own PIL image (``draw_head()``) and resize it
+    to the requested cell grid.  All visual features — ears, forehead
+    arc, eyes, cheeks, nose, w-mouth, whiskers, base line — survive the
+    scaling and stay recognisably the same character.
     """
     table = {
-        "16x9": dict(
-            cells_w=16, cells_h=9,
-            forehead_arc=True, eye_w=2.0, eye_h=1.0, cheeks=True,
-            nose=True, whiskers=2, base_line=True, mouth="w",
-        ),
-        "12x7": dict(
-            cells_w=12, cells_h=7,
-            forehead_arc=False, eye_w=1.6, eye_h=1.0, cheeks=True,
-            nose=True, whiskers=1, base_line=True, mouth="w",
-        ),
-        "10x6": dict(
-            # v0.2.9: enable every feature that's in the big 16×9 logo so
-            # this variant reaches the ≥60 % similarity bar.
-            cells_w=10, cells_h=6,
-            forehead_arc=True, eye_w=1.5, eye_h=1.0, cheeks=True,
-            nose=True, whiskers=2, base_line=True, mouth="w",
-            face_shape="rect",
-        ),
-        "8x5": dict(
-            cells_w=8, cells_h=5,
-            forehead_arc=False, eye_w=1.0, eye_h=0.9, cheeks=False,
-            nose=False, whiskers=0, base_line=True, mouth="smile",
-            face_shape="ellipse",  # v0.2.7: rounder face
-        ),
+        "16x9": (16, 9),
+        "12x7": (12, 7),
+        "10x6": (10, 6),
+        "8x5": (8, 5),
     }
     if size_label not in table:
         raise ValueError(f"unknown small variant size: {size_label!r}")
-    spec = table[size_label]
-    return _make_small_variant(
-        spec["cells_w"], spec["cells_h"],
-        features={
-            "forehead_arc": spec["forehead_arc"],
-            "eye_w": spec["eye_w"], "eye_h": spec["eye_h"],
-            "cheeks": spec["cheeks"], "nose": spec["nose"],
-            "whiskers": spec["whiskers"], "base_line": spec["base_line"],
-            "mouth": spec["mouth"],
-        },
+    cells_w, cells_h = table[size_label]
+    if (cells_w, cells_h) == (16, 9):
+        return draw_head()
+    return draw_head().resize(
+        (cells_w * SCALE, cells_h * SCALE * 2),
+        Image.LANCZOS,
     )
 
 
