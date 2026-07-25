@@ -697,14 +697,12 @@ def write_preview_pngs(head_img: Image.Image, small_imgs: dict[str, list[Image.I
 
 def build(preview_only: bool = False, include_size_variants: bool = True) -> None:
     # v0.2.9: redesign small logo.
-    # Constraints (user feedback):
-    #   - max side ≤ 10 cells
-    #   - ≥60 % visual similarity to the 16×9 boot big logo
-    # Chosen size: 10×6 (max side = 10, comfortably fits the full
-    # big-logo feature set: ears + forehead arc + eyes + cheeks + nose
-    # + w-mouth + 2 whiskers / side + base line).
-    MASCOT_SIZE = "10x6"
-    MASCOT_CW, MASCOT_CH = 10, 6
+    # v0.2.11: user picked 12×7 cells for the runtime mascot.  This is
+    # the BIG-logo 16×9 scaled via PIL LANCZOS down to 12×7 (75 %).
+    # All visual features (forehead arc / cheeks / nose / w-mouth /
+    # whiskers / base line) survive the resize.
+    MASCOT_SIZE = "12x7"
+    MASCOT_CW, MASCOT_CH = 12, 7
 
     head_img = draw_head()
     mascot_base_img = draw_small_variant(MASCOT_SIZE)
