@@ -28,9 +28,10 @@ PAL_HEX_LOWER = {idx: c.lower() for idx, c in enumerate(PALETTE) if c is not Non
 HEAD_CELLS_W: int = _logo_assets.HEAD_CELLS_W
 HEAD_CELLS_H: int = _logo_assets.HEAD_CELLS_H
 
-# In v0.2.3 the small mascot shares the head canvas size.
-SMALL_CELLS_W: int = HEAD_CELLS_W
-SMALL_CELLS_H: int = HEAD_CELLS_H
+# v0.2.8: the runtime small mascot has been promoted to 8×5 cells
+# (round-ellipse face).  The boot head stays at 16×9.
+SMALL_CELLS_W: int = _logo_assets.SMALL_CELLS_W
+SMALL_CELLS_H: int = _logo_assets.SMALL_CELLS_H
 
 ANIMATIONS: tuple[str, ...] = ("blink_ear",)
 FRAMES_PER_ANIM: int = 4

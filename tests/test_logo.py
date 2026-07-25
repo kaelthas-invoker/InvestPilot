@@ -19,12 +19,8 @@ def test_animations_constant() -> None:
     assert logo.FRAMES_PER_ANIM == 4
 
 
-def test_head_cell_geometry() -> None:
-    """Big and small logos share the same 16×9 cell geometry in v0.2.3.
-
-    The asset grid stores 2 pixel rows per cell, so cols == 16 and rows
-    equals ``HEAD_CELLS_H * 2``.
-    """
+def test_big_head_cell_geometry() -> None:
+    """Boot head: 16×9 cells, 2 pixel rows per cell."""
     from investpilot.interface import _logo_assets
 
     grid = _logo_assets.HEAD
@@ -34,7 +30,7 @@ def test_head_cell_geometry() -> None:
 
 
 def test_small_frames_shape() -> None:
-    """Single animation, 4 frames, each 18 pixel-rows × 16 columns."""
+    """Mascot frames: ``SMALL_CELLS_W × SMALL_CELLS_H`` cells, 4 frames."""
     from investpilot.interface import _logo_assets
 
     assert set(_logo_assets.SMALL_FRAMES) == set(logo.ANIMATIONS)
@@ -42,9 +38,9 @@ def test_small_frames_shape() -> None:
         frames = _logo_assets.SMALL_FRAMES[name]
         assert len(frames) == logo.FRAMES_PER_ANIM
         for frame in frames:
-            assert len(frame) == logo.HEAD_CELLS_H * 2 == 18
+            assert len(frame) == logo.SMALL_CELLS_H * 2
             for row in frame:
-                assert len(row) == logo.HEAD_CELLS_W == 16
+                assert len(row) == logo.SMALL_CELLS_W
 
 
 def test_grids_only_use_palette_indices() -> None:
@@ -86,7 +82,7 @@ def test_render_head_visual_rows_count() -> None:
 
 def test_render_small_frame_known_animation() -> None:
     text = logo.render_small_frame("blink_ear", 0)
-    assert text.count("\n") == logo.HEAD_CELLS_H - 1 == 8
+    assert text.count("\n") == logo.SMALL_CELLS_H - 1
 
 
 def test_render_small_frame_unknown_animation_raises() -> None:
@@ -108,7 +104,7 @@ def test_blink_ear_frames_differ() -> None:
     diffs = sum(
         1 for r_a, r_b in zip(base, closed) for a, b in zip(r_a, r_b) if a != b
     )
-    assert diffs >= 10
+    assert diffs >= 4  # at minimum: 2 eyes + 2 ears
 
 
 # ---------------------------------------------------------------------------

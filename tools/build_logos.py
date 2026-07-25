@@ -53,14 +53,18 @@ def _hex(rgb: str) -> tuple[int, int, int]:
 
 PAL_RGB = {idx: _hex(c) for idx, c in PAL_HEX.items()}
 
-# Big and small both use the same 16×9 cell grid (per user feedback on
-# v0.2.2 — big should match small to avoid duplicate art).
-CELLS_W, CELLS_H = 16, 9
+# ---------------------------------------------------------------------------
+# v0.2.8: split big and mascot dimensions.
+#
+# The boot big logo uses the head-artwork canvas (16×9 cells).  The
+# resident mascot has been promoted to the user's chosen 8×5 variant
+# (round-ellipse face).  Both share the same ``SCALE`` ratio.
+# ---------------------------------------------------------------------------
 
-# Source pixel scale per cell for PIL drawing (lets anti-aliasing look nice).
 SCALE = 8
-W = CELLS_W * SCALE
-H = CELLS_H * SCALE * 2  # 2 rows of pixels per cell
+HEAD_CELLS_W, HEAD_CELLS_H = 16, 9
+W = HEAD_CELLS_W * SCALE
+H = HEAD_CELLS_H * SCALE * 2  # 2 rows of pixels per cell
 
 
 # ---------------------------------------------------------------------------
@@ -440,6 +444,9 @@ SMALL_VARIANT_PREVIEW_NAMES = tuple(f"small_variant_{w}x{h}" for w, h in SMALL_V
 def _blink_ear(img: Image.Image, frame: int) -> Image.Image:
     """Returns ``img`` with eyes closing in sync with ears tilting outward.
 
+    **Size-aware** (v0.2.8): the input image dimensions determine the cell
+    grid; all redraw positions are scaled relative to the 16×9 reference.
+
     Frame schedule:
       0 — eyes open, ears upright (base pose)
       1 — eyes half-closed, ears slightly tilted
@@ -458,8 +465,15 @@ def _blink_ear(img: Image.Image, frame: int) -> Image.Image:
     DARK = 4
     BLACK = 5
 
-    def px(x: int, y: int) -> tuple[int, int]:
-        return (x * SCALE, y * SCALE * 2)
+    # Auto-detect the canvas cell grid; scale all positions accordingly.
+    img_w, img_h = img.size
+    cells_w = img_w // SCALE
+    cells_h = img_h // (SCALE * 2)
+    sx = cells_w / 16.0
+    sy = cells_h / 9.0
+
+    def px(x: float, y: float) -> tuple[int, int]:
+        return (int(x * sx * SCALE), int(y * sy * SCALE * 2))
 
     # Per-frame parameters
     eye_states = {
@@ -608,6 +622,10 @@ def quantize(img: Image.Image, cells_w: int, cells_h: int) -> list[list[int]]:
 def write_assets_py(
     head_grid: list[list[int]],
     frames_grids: dict[str, list[list[list[int]]]],
+    *,
+    mascot_base_grid: list[list[int]] | None = None,
+    mascot_cells_w: int = 8,
+    mascot_cells_h: int = 5,
     variant_grids: dict[str, list[list[int]]] | None = None,
     variant_sizes: dict[str, tuple[int, int]] | None = None,
 ) -> None:
@@ -629,6 +647,21 @@ def write_assets_py(
         joined = ",\n        ".join(frame_blocks)
         comma = "," if idx < len(names) - 1 else ""
         sm_lines.append(f'    "{name}": [\n        {joined},\n    ]{comma}')
+
+    mascot_block = ""
+    if mascot_base_grid is not None:
+        mascot_lines = (
+            "[\n"
+            + "\n".join(f"        {row}," for row in mascot_base_grid)
+            + "\n    ]"
+        )
+        mascot_block = (
+            f"SMALL_CELLS_W: int = {mascot_cells_w}\n"
+            f"SMALL_CELLS_H: int = {mascot_cells_h}\n"
+            "SMALL_BASE: tuple[tuple[int, ...], ...] = (\n"
+            f"    {mascot_lines}\n"
+            ")\n"
+        )
 
     variant_block = ""
     if variant_grids and variant_sizes:
@@ -659,7 +692,8 @@ def write_assets_py(
         "HEAD: tuple[tuple[int, ...], ...] = (\n"
         f"    {head_lines}\n"
         ")\n"
-        "SMALL_FRAMES: dict[str, tuple[tuple[tuple[int, ...], ...], ...]] = {\n"
+        + mascot_block
+        + "SMALL_FRAMES: dict[str, tuple[tuple[tuple[int, ...], ...], ...]] = {\n"
         + "\n".join(sm_lines)
         + "\n}\n"
         + variant_block
@@ -680,19 +714,27 @@ def write_preview_pngs(head_img: Image.Image, small_imgs: dict[str, list[Image.I
 # ---------------------------------------------------------------------------
 
 def build(preview_only: bool = False, include_size_variants: bool = True) -> None:
+    # v0.2.8: the boot big logo is the 16×9 head artwork (locked at
+    # v0.2.5-mini); the runtime small mascot has been promoted to the
+    # user's chosen 8×5 variant (round-ellipse face).
+    MASCOT_SIZE = "8x5"
+    MASCOT_CW, MASCOT_CH = 8, 5
+
     head_img = draw_head()
+    mascot_base_img = draw_small_variant(MASCOT_SIZE)
 
     small_frames_imgs: dict[str, list[Image.Image]] = {}
     small_frames_grids: dict[str, list[list[list[int]]]] = {}
     for name, fn in ANIMS.items():
-        frames = [fn(head_img, i) for i in range(4)]
+        frames = [fn(mascot_base_img, i) for i in range(4)]
         small_frames_imgs[name] = frames
         if not preview_only:
             small_frames_grids[name] = [
-                quantize(f, CELLS_W, CELLS_H * 2) for f in frames
+                quantize(f, MASCOT_CW, MASCOT_CH * 2) for f in frames
             ]
 
-    head_grid = quantize(head_img, CELLS_W, CELLS_H * 2)
+    head_grid = quantize(head_img, HEAD_CELLS_W, HEAD_CELLS_H * 2)
+    mascot_base_grid = quantize(mascot_base_img, MASCOT_CW, MASCOT_CH * 2)
 
     # v0.2.6 user feedback: render small-logo size variants and embed
     # their grids into the asset module so the TUI can render them at
@@ -717,7 +759,11 @@ def build(preview_only: bool = False, include_size_variants: bool = True) -> Non
 
     if not preview_only:
         write_assets_py(
-            head_grid, small_frames_grids,
+            head_grid=head_grid,
+            mascot_base_grid=mascot_base_grid,
+            mascot_cells_w=MASCOT_CW,
+            mascot_cells_h=MASCOT_CH,
+            frames_grids=small_frames_grids,
             variant_grids=variant_grids or None,
             variant_sizes=variant_sizes or None,
         )
