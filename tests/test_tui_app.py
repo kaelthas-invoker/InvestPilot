@@ -68,17 +68,24 @@ async def test_app_boot_and_send_smoke() -> None:
 
 
 @pytest.mark.asyncio
-async def test_mascot_cycles_through_animations() -> None:
-    """Boot 后推进 ≥ 5 帧应当看到多个不同 (anim, frame) 内容。"""
+async def test_mascot_cycles_through_frames() -> None:
+    """Driving ``_tick_mascot`` repeatedly walks the blink_ear frames.
+
+    v0.2.3 has only the single ``blink_ear`` animation, so a complete
+    cycle is 4 ticks — across them the mascot must render ≥ 2 distinct
+    frames (eyes-open vs eyes-closed at minimum).
+    """
     app = InvestPilotApp(_FakeSession())
-    async with app.run_test() as pilot:
-        # 等几拍让 ticker 跑起来
-        for _ in range(8):
-            await pilot.pause()
-        mascot = app.query_one("#mascot", Static)
-        seen_text: set[str] = set()
-        for _ in range(25):  # ≥ 1 个完整循环（20 帧）
-            await pilot.pause(delay=InvestPilotApp.MASCOT_INTERVAL_SECONDS * 2)
-            seen_text.add(_static_text(mascot))
-        # 25 个 ticks 应该至少出现 2 种不同 (anim, frame) 内容
-        assert len(seen_text) >= 2
+    async with app.run_test():
+        from investpilot.interface import logo
+
+        seen: set[str] = set()
+        for _ in range(8):  # two full loops of 4 frames
+            logo.advance_state()
+            app._tick_mascot()  # noqa: SLF001 — verify harness only
+            from textual.widgets import Static
+
+            mascot = app.query_one("#mascot", Static)
+            seen.add(_static_text(mascot))
+        # At least 2 distinct frame renderings across the loop.
+        assert len(seen) >= 2

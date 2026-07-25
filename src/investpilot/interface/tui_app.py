@@ -83,16 +83,17 @@ class InvestPilotApp(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
-        # Mount the big orange-cat logo as the first transcript line.
-        head = Static(logo.render_big_head(), classes="msg", markup=True)
+        # Mount the orange-cat boot logo as the first transcript line.
+        # v0.2.3: boot logo uses the same 16×9 cat artwork as the mascot.
+        head = Static(logo.render_head(), classes="msg", markup=True)
         self.query_one("#transcript", VerticalScroll).mount(head)
         self._append_line("InvestPilot 投研助手（研究辅助，不构成投资建议）")
         if self._title_suffix:
             self._append_line(f"模型: {self._title_suffix}")
         self.query_one("#chat-input", Input).focus()
 
-        # Start the resident mascot ticker: cycles 5 animations × 4 frames
-        # = 20 frames per loop, fully automatic, no state mapping.
+        # Start the resident mascot ticker. v0.2.3 only has a single
+        # blink+ear animation (4 frames looped at 0.4s/cycle).
         logo.set_small_state(logo.ANIMATIONS[0], 0)
         mascot = self.query_one("#mascot", Static)
         mascot.update(logo.render_small_static())

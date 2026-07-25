@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Headless screenshot harness for v0.2.2 mascot + big-logo acceptance.
+"""Headless screenshot harness for v0.2.3 mascot + boot logo acceptance.
 
 Boots the InvestPilot TUI in a Textual ``run_test`` pilot, advances the
-small-mascot state through ``wave → ear → tail → blink → peek → wave``
-saving an SVG at every animation / frame pair, and writes the matching
-PNGs via ``rsvg-convert``.
+small-mascot state through the single ``blink_ear`` 4-frame animation,
+saving an SVG at every frame, and writes the matching PNGs via
+``rsvg-convert``.
 
-Also saves a "full app" screenshot to show the resident mascot in
-context with the dialog input.
+Also saves a "full app" screenshot to show the boot logo and resident
+mascot in context with the dialog input.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from investpilot.interface.tui_app import InvestPilotApp
 from investpilot.providers.base import StreamChunk
 
 ROOT = Path(__file__).resolve().parents[1]
-VERIFY_DIR = ROOT / "docs" / "iterations" / "v0.2.2" / "verify"
+VERIFY_DIR = ROOT / "docs" / "iterations" / "v0.2.3" / "verify"
 
 
 class _NoopSession:
@@ -61,53 +61,34 @@ async def main() -> int:
         print("rsvg-convert not found; cannot convert SVG → PNG", file=sys.stderr)
         return 1
 
-    # Use a larger terminal so per-cell halfrendering stays readable in
-    # the exported SVG/PNG.  (120×40 = 4800 chars, comfortably fits the
-    # 32-wide big logo and 16-wide small mascot at full detail.)
     app = InvestPilotApp(_NoopSession(), title_suffix="verify")
     async with app.run_test(size=(120, 40)) as pilot:
-        # Boot yields on_mount which already mounts the big logo and
-        # starts the resident mascot ticker; pause so layout settles.
         await pilot.pause()
         _save_svg(app, "app_boot")
         print("Saved app_boot screenshot")
 
-        # Walk every (anim, frame) deterministically by overriding state
-        # and pushing the render directly (skipping _tick_mascot's
-        # advance-state side effect).
         from textual.widgets import Static
 
         mascot_widget = app.query_one("#mascot", Static)
-        for anim in logo.ANIMATIONS:
-            for frame_index in range(logo.FRAMES_PER_ANIM):
-                logo.set_small_state(anim, frame_index)
-                mascot_widget.update(logo.render_small_static())
-                await pilot.pause()
-                name = f"mascot_{anim}_{frame_index}"
-                _save_svg(app, name)
-                print(f"  saved {name}")
 
-        # Save a zoom-in screenshot focused on the small mascot, useful
-        # for review of the 5 animation effects.
-        _save_svg(app, "mascot_zoom_wave_2")
-        logo.set_small_state("wave", 2)
-        mascot_widget.update(logo.render_small_static())
-        await pilot.pause()
-        _save_svg(app, "mascot_zoom_wave_2")
-        logo.set_small_state("tail", 1)
-        mascot_widget.update(logo.render_small_static())
-        await pilot.pause()
-        _save_svg(app, "mascot_zoom_tail_1")
-        logo.set_small_state("blink", 2)
-        mascot_widget.update(logo.render_small_static())
-        await pilot.pause()
-        _save_svg(app, "mascot_zoom_blink_2")
-        logo.set_small_state("peek", 3)
-        mascot_widget.update(logo.render_small_static())
-        await pilot.pause()
-        _save_svg(app, "mascot_zoom_peek_3")
+        # Walk every frame of the single blink_ear animation.
+        for frame_index in range(logo.FRAMES_PER_ANIM):
+            logo.set_small_state(logo.ANIMATIONS[0], frame_index)
+            mascot_widget.update(logo.render_small_static())
+            await pilot.pause()
+            name = f"mascot_blink_ear_{frame_index}"
+            _save_svg(app, name)
+            print(f"  saved {name}")
 
-        # Final: ensure the chat dialog still works (smoke).
+        # Snapshots at three meaningful moments: open eyes, peak closed,
+        # close-up of the peak for review.
+        for label, frame_index in [("open", 0), ("half", 1), ("closed", 2), ("decay", 3)]:
+            logo.set_small_state(logo.ANIMATIONS[0], frame_index)
+            mascot_widget.update(logo.render_small_static())
+            await pilot.pause()
+            _save_svg(app, f"mascot_zoom_{label}")
+
+        # Smoke: chat input still works and the resident mascot stays put.
         inp = app.query_one("#chat-input", Input)
         mascot = app.query_one("#mascot", Static)
         assert mascot.render() is not None
@@ -116,7 +97,6 @@ async def main() -> int:
         await pilot.pause()
         print("Verified chat input submits without breaking mascot")
 
-    # Convert all SVGs to PNGs.
     svgs = sorted(VERIFY_DIR.glob("*.svg"))
     for svg in svgs:
         _svg_to_png(svg)

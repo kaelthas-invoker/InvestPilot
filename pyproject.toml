@@ -1,6 +1,6 @@
 [project]
 name = "investpilot"
-version = "0.2.2"
+version = "0.2.3"
 description = "InvestPilot — A+H 双重市场投研顾问 agent"
 readme = "README.md"
 requires-python = ">=3.12"

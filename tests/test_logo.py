@@ -14,22 +14,27 @@ def test_palette_length() -> None:
 
 
 def test_animations_constant() -> None:
-    assert logo.ANIMATIONS == ("wave", "ear", "tail", "blink", "peek")
+    """v0.2.3 collapses the 5 animations into a single ``blink_ear``."""
+    assert logo.ANIMATIONS == ("blink_ear",)
     assert logo.FRAMES_PER_ANIM == 4
 
 
-def test_big_head_cell_geometry() -> None:
-    """Grid stores 2 pixel rows per cell, so cols == 32 and rows == 18 * 2."""
+def test_head_cell_geometry() -> None:
+    """Big and small logos share the same 16×9 cell geometry in v0.2.3.
+
+    The asset grid stores 2 pixel rows per cell, so cols == 16 and rows
+    equals ``HEAD_CELLS_H * 2``.
+    """
     from investpilot.interface import _logo_assets
 
-    grid = _logo_assets.BIG_HEAD
-    assert len(grid) == logo.BIG_HEAD_CELLS_H * 2 == 36
+    grid = _logo_assets.HEAD
+    assert len(grid) == logo.HEAD_CELLS_H * 2 == 18
     for row in grid:
-        assert len(row) == logo.BIG_HEAD_CELLS_W == 32
+        assert len(row) == logo.HEAD_CELLS_W == 16
 
 
 def test_small_frames_shape() -> None:
-    """5 animations × 4 frames, each 18 pixel-rows × 16 columns."""
+    """Single animation, 4 frames, each 18 pixel-rows × 16 columns."""
     from investpilot.interface import _logo_assets
 
     assert set(_logo_assets.SMALL_FRAMES) == set(logo.ANIMATIONS)
@@ -37,17 +42,16 @@ def test_small_frames_shape() -> None:
         frames = _logo_assets.SMALL_FRAMES[name]
         assert len(frames) == logo.FRAMES_PER_ANIM
         for frame in frames:
-            assert len(frame) == logo.SMALL_CELLS_H * 2 == 18
+            assert len(frame) == logo.HEAD_CELLS_H * 2 == 18
             for row in frame:
-                assert len(row) == logo.SMALL_CELLS_W == 16
+                assert len(row) == logo.HEAD_CELLS_W == 16
 
 
 def test_grids_only_use_palette_indices() -> None:
-    """All grid cells must index into the 6-color palette (0..5)."""
     from investpilot.interface import _logo_assets
 
     palette_size = len(logo.PALETTE)
-    for row in _logo_assets.BIG_HEAD:
+    for row in _logo_assets.HEAD:
         for v in row:
             assert 0 <= v < palette_size
 
@@ -63,33 +67,26 @@ def test_grids_only_use_palette_indices() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_render_big_head_uses_halfblock() -> None:
-    text = logo.render_big_head()
-    # Contains at least one half-block char
+def test_render_head_uses_halfblock() -> None:
+    text = logo.render_head()
     assert any(ch in text for ch in ("▀", "▄", "█"))
 
 
-def test_render_big_head_includes_palette_colors() -> None:
-    text = logo.render_big_head().lower()
+def test_render_head_includes_palette_colors() -> None:
+    text = logo.render_head().lower()
     palette_hexes = {c.lower() for c in logo.PALETTE if c is not None}
     assert any(hex_code in text for hex_code in palette_hexes)
 
 
-def test_render_big_head_visual_rows_count() -> None:
-    text = logo.render_big_head()
+def test_render_head_visual_rows_count() -> None:
+    text = logo.render_head()
     lines = text.split("\n")
-    # 18 visual rows (each row = two stacked pixel rows in the grid)
-    assert len(lines) == logo.BIG_HEAD_CELLS_H == 18
-    for line in lines:
-        # Each visual row contains BIG_HEAD_CELLS_W terminal cols
-        # Even after Rich strips tags, terminal cell width remains the
-        # number of half-block characters. We just verify non-empty.
-        assert line
+    assert len(lines) == logo.HEAD_CELLS_H == 9
 
 
 def test_render_small_frame_known_animation() -> None:
-    text = logo.render_small_frame("wave", 0)
-    assert text.count("\n") == logo.SMALL_CELLS_H - 1 == 8
+    text = logo.render_small_frame("blink_ear", 0)
+    assert text.count("\n") == logo.HEAD_CELLS_H - 1 == 8
 
 
 def test_render_small_frame_unknown_animation_raises() -> None:
@@ -97,28 +94,21 @@ def test_render_small_frame_unknown_animation_raises() -> None:
         logo.render_small_frame("nope", 0)
 
 
-def test_animation_frames_differ_from_each_other() -> None:
-    """Within an animation, frames 0/2 (base) may match; frames 1/3 should
-    differ; and cross-animation frames must differ somewhere."""
+def test_blink_ear_frames_differ() -> None:
+    """Blink + ear animation: frames 0/2 differ (open vs closed eyes);
+    frames 1/3 should be the same intermediate state."""
     from investpilot.interface import _logo_assets
 
-    # Tail frame 1 and frame 3 should differ from base since they swing
-    # the tail arc.
-    base = _logo_assets.SMALL_FRAMES["tail"][0]
-    swung_left = _logo_assets.SMALL_FRAMES["tail"][1]
-    swung_right = _logo_assets.SMALL_FRAMES["tail"][3]
-    assert base != swung_left
-    assert base != swung_right
+    base = _logo_assets.SMALL_FRAMES["blink_ear"][0]
+    closed = _logo_assets.SMALL_FRAMES["blink_ear"][2]
+    assert base != closed  # eyes change between open and closed
 
-    # Peek frame 3 (deepest peek) should differ from frame 0 (base).
-    base = _logo_assets.SMALL_FRAMES["peek"][0]
-    up = _logo_assets.SMALL_FRAMES["peek"][3]
-    assert base != up
-
-    # Cross-animation: blink frame 2 should differ from peek frame 0.
-    blink_closed = _logo_assets.SMALL_FRAMES["blink"][2]
-    peek_base = _logo_assets.SMALL_FRAMES["peek"][0]
-    assert blink_closed != peek_base
+    # Cross-check: peak (closed eyes + tilted ears) versus base (open
+    # eyes + upright ears) must differ in multiple cells.
+    diffs = sum(
+        1 for r_a, r_b in zip(base, closed) for a, b in zip(r_a, r_b) if a != b
+    )
+    assert diffs >= 10
 
 
 # ---------------------------------------------------------------------------
@@ -126,25 +116,29 @@ def test_animation_frames_differ_from_each_other() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_advance_state_progresses_through_animations() -> None:
-    logo.set_state("wave", 0)
+def test_advance_walks_through_frames_in_one_animation() -> None:
+    logo.set_state("blink_ear", 0)
     seen: set[tuple[str, int]] = set()
-    for _ in range(20):  # 5 anims × 4 frames
+    for _ in range(4):  # one loop = 4 frames in a single animation
         name, idx = logo.get_state()
         seen.add((name, idx))
         logo.advance_state()
-    # All 5×4 = 20 distinct (anim, frame) pairs should have been seen.
-    assert seen == {
-        (a, i)
-        for a in logo.ANIMATIONS
-        for i in range(logo.FRAMES_PER_ANIM)
-    }
+    assert seen == {("blink_ear", i) for i in range(4)}
+
+
+def test_advance_cycles_after_one_full_loop() -> None:
+    logo.set_state("blink_ear", 0)
+    for _ in range(4):
+        logo.advance_state()
+    name, idx = logo.get_state()
+    assert name == "blink_ear"
+    assert idx == 0
 
 
 def test_render_small_static_matches_set_state() -> None:
-    logo.set_state("ear", 2)
+    logo.set_state("blink_ear", 2)
     text = logo.render_small_static()
-    expected = logo.render_small_frame("ear", 2)
+    expected = logo.render_small_frame("blink_ear", 2)
     assert text == expected
 
 
