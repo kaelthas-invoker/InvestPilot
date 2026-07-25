@@ -286,7 +286,13 @@ def draw_small_base() -> Image.Image:
 
 def _wave(img: Image.Image, frame: int) -> Image.Image:
     """Right paw raises and waves. Frame 0 = base paw; frames 1-3 cycle
-    the paw height: low → high → low to simulate waving.
+    the paw height: low → very high → low to simulate waving clearly.
+
+    Wave pattern:
+    - frame 0: paw at base (under chin)
+    - frame 1: paw at chest level (next to face)
+    - frame 2: paw WAY above head (high wave)
+    - frame 3: paw at chest level
     """
     img = img.copy()
     d = ImageDraw.Draw(img)
@@ -294,9 +300,10 @@ def _wave(img: Image.Image, frame: int) -> Image.Image:
     def px(x: int, y: int) -> tuple[int, int]:
         return (x * SCALE, y * SCALE * 2)
 
-    # Wipe the default right paw by repainting the area with face fill.
+    # Wipe a larger band first to ensure the raised paw doesn't leave
+    # artifacts at the original base position.
     d.rectangle(
-        [px(12.4, 7.4), px(15.7, 8.6)],
+        [px(12.4, 0.0), px(16.0, 8.6)],
         fill=PAL_RGB[1],
     )
 
@@ -308,19 +315,18 @@ def _wave(img: Image.Image, frame: int) -> Image.Image:
         )
         return img
 
-    # Frames 1, 2, 3: paw at heights 6.0, 3.5, 6.0 (clear up-down wave).
-    heights = {1: 6.0, 2: 3.5, 3: 6.0}
+    # Frames 1 / 2 / 3: paw moves through clear vertical stops.
+    heights = {1: 5.5, 2: 1.5, 3: 5.5}
     paw_y0 = heights[frame]
-    # Make the raised paw slightly wider so it's clearly visible above head.
-    paw_x0 = 13.5
-    paw_x1 = 15.5
+    paw_x0 = 13.0
+    paw_x1 = 15.0
     d.rounded_rectangle(
-        [px(paw_x0, paw_y0), px(paw_x1, paw_y0 + 1.0)],
+        [px(paw_x0, paw_y0), px(paw_x1, paw_y0 + 1.1)],
         radius=8, fill=PAL_RGB[1],
     )
     # Outline darker so it stands out against orange face.
     d.rectangle(
-        [px(paw_x0 - 0.1, paw_y0 + 0.05), px(paw_x1 + 0.1, paw_y0 + 1.0)],
+        [px(paw_x0 - 0.1, paw_y0 + 0.05), px(paw_x1 + 0.1, paw_y0 + 1.1)],
         outline=PAL_RGB[2], width=1,
     )
     return img
@@ -391,33 +397,20 @@ def _tail(img: Image.Image, frame: int) -> Image.Image:
 
     # Wipe the existing tail arc area (rightmost columns, vertical band).
     d.rectangle(
-        [px(12.5, 5.0), px(16.0, 8.0)],
+        [px(10.5, 5.0), px(16.0, 8.0)],
         fill=PAL_RGB[1],
     )
 
     # Map frame index to a horizontal offset relative to base.
-    # Use full-cell offsets so quantization picks up the swing.
-    offsets = [0, -1.2, 0, 1.2]  # frame 0/2 = centered
+    # Use ±2-cell full offsets so the swing is unambiguous at terminal size.
+    offsets = [0, -2.0, 0, 2.0]  # frame 0/2 = centered
     dx = offsets[frame]
 
-    # Draw new tail arc at shifted position. Keep the arc well within the
-    # canvas so the swing is visible from both directions.
-    arc_x0 = 13.0 + dx
+    # Draw new tail arc at shifted position.
+    arc_x0 = 12.5 + dx
     arc_x1 = 15.5 + dx
-    if dx < 0:
-        # Tail moved left — also erase any leftover on the right side.
-        d.rectangle(
-            [px(arc_x1 + 0.3, 5.0), px(16.0, 8.0)],
-            fill=PAL_RGB[1],
-        )
-    else:
-        # Tail moved right — erase the original left position.
-        d.rectangle(
-            [px(12.5, 5.0), px(arc_x0 - 0.3, 8.0)],
-            fill=PAL_RGB[1],
-        )
     d.arc(
-        [px(arc_x0, 5.4), px(arc_x1, 7.6)],
+        [px(arc_x0, 5.2), px(arc_x1, 7.6)],
         start=270, end=90,
         fill=PAL_RGB[2], width=5,
     )
