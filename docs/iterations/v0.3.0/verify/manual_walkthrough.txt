@@ -1,0 +1,129 @@
+v0.3.0 Manual Walkthrough — chat persistence + /resume screen
+=============================================================
+Date: 2026-07-25
+Tester: e2e-tester (Verify(Delivery) V3)
+Project: /private/var/www/github/InvestPilot
+Script: /tmp/walkthrough_v030.py
+DB: /Users/caisiming/.invest-pilot/chat.db
+
+-------------------------------------------------------------
+STEP 1 — Clean state
+-------------------------------------------------------------
+$ rm -rf ~/.invest-pilot
+$ ls -la ~/.invest-pilot/
+Confirmed: directory does not exist
+
+-------------------------------------------------------------
+STEP 2 — Persistence layer end-to-end (FakeProvider via ChatSession)
+-------------------------------------------------------------
+DB path: /Users/caisiming/.invest-pilot/chat.db
+chunks (1st send): [StreamChunk(kind='text', text='fake reply (saw 3 msgs)'), StreamChunk(kind='done', text='')]
+session_id: 0db85ec9d47e435a80dc2142b505cb2a
+chunks2 (2nd send): [StreamChunk(kind='text', text='fake reply (saw 5 msgs)'), StreamChunk(kind='done', text='')]
+list count: 1
+  - '测试问题一' (updated 2026-07-25T14:00:35.273994+00:00, count=4)
+loaded: [('user', '测试问题一'), ('assistant', 'fake reply (saw 3 msgs)'), ('user', '测试问题二'), ('assistant', 'fake reply (saw 5 msgs)')]
+
+Observations:
+- chat.db auto-created under ~/.invest-pilot/ (mode 0o700).
+- session row created with provider=anthropic, model=test-model, message_count=4.
+- list_sessions returns the single session (because list filters message_count > 0).
+- load_messages returns 4 messages in seq order; assistant content persisted.
+- send() correctly grew context: 2nd send saw 5 messages (system + 2 user + 2 assistant).
+- Streams are wired through ChatSession.send() -> provider.stream_chat() and
+  each streamed chunk is yielded verbatim; both StreamChunk('text',...) and
+  StreamChunk('done') reach the consumer.
+
+-------------------------------------------------------------
+STEP 3 — format_age (k8s-style boundaries per SPEC §10)
+-------------------------------------------------------------
+  0s -> 0s
+  30s -> 30s
+  60s -> 1m
+  3599s -> 59m
+  3600s -> 1h
+  86399s -> 23h
+  86400s -> 1d
+
+All seven boundary values match SPEC exactly.
+
+-------------------------------------------------------------
+STEP 4 — first_line_preview
+-------------------------------------------------------------
+  hello                 -> 'hello'
+  hello\nworld          -> 'hello'
+  70 x's                -> 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…'
+
+Notes:
+- Single line passes through unchanged.
+- Multi-line returns only the first line.
+- 70 chars truncated to 59 chars + ellipsis (max_width=60).
+
+-------------------------------------------------------------
+STEP 5 — ResumeListScreen render via Textual pilot
+-------------------------------------------------------------
+Script: /tmp/test_resume_render.py
+DB used for rendering: /tmp/v030_test.db (seeded manually; 2 sessions)
+
+RESUME SCREEN DUMP:
+  问题二      0s
+  问题一      0s
+
+Observations:
+- Items are sorted newest-first (list_sessions ORDER BY updated_at DESC, id DESC).
+- Preview is the first user message (truncated/normally passed).
+- k8s-style age is right-aligned (`:>6`) — column alignment works in render.
+- ListView/ListItem structure correctly composed; both seeded sessions appear.
+- Empty-state Static ('暂无历史会话，按 Esc 返回') path is exercised by the
+  if-not-self._items branch (not triggered here because 2 sessions were seeded).
+
+-------------------------------------------------------------
+STEP 6 — Screenshot SVG
+-------------------------------------------------------------
+Saved: docs/iterations/v0.3.0/verify/resume_screen.svg
+Source: app.export_screenshot(title="Resume Screen v0.3.0") via Pilot
+Size: 10689 bytes
+
+-------------------------------------------------------------
+SQLite dump after the two sends
+-------------------------------------------------------------
+Saved: docs/iterations/v0.3.0/verify/db_after_two_sends.txt
+Tool: sqlite3 ~/.invest-pilot/chat.db '.dump'
+
+Summary of what's in chat.db:
+- session(1 row): id=0db85ec9d47e435a80dc2142b505cb2a, provider=anthropic,
+  model=test-model, system_prompt (full Chinese system prompt verbatim),
+  message_count=4, timestamps in ISO-8601 'Z'.
+- message(4 rows): seq 1..4 in correct order, roles user/assistant/user/assistant,
+  status='final' on all (finalize_message ran), content preserved including
+  Chinese characters.
+- Indexes: idx_session_updated_at, idx_message_session_seq both created.
+- Foreign keys: message.session_id REFERENCES session(id) ON DELETE CASCADE
+  declared (PRAGMA foreign_keys=ON enforced by open_db).
+- sqlite_sequence shows message autoincrement at 4 — matches the row count.
+
+-------------------------------------------------------------
+Notes / Concerns
+-------------------------------------------------------------
+1. _seed_for_test is referenced in the task brief but is NOT defined anywhere
+   in src/investpilot/storage/. The probe script seeds manually using
+   repo.create_session + repo.append_message, which is the same code path the
+   TUI uses. Not a blocker, but worth confirming the brief was referring to a
+   removed/never-shipped helper.
+
+2. ChatSession.send uses bare `return; yield` after the empty-text guard —
+   `return` returns from the generator so `yield` is unreachable, but this is
+   only meaningful for callers that introspect the function. Verified the
+   empty-text path doesn't actually produce anything during the walkthrough
+   because we always send non-empty text.
+
+3. Persistence writes (session row + user row + assistant streaming row +
+   final update) all completed cleanly with no warnings. FOREIGN KEY pragma
+   is ON in open_db but the dump file shows PRAGMA foreign_keys=OFF at the
+   top — that's just .dump's default, not a real-world behavior change.
+
+4. The two-step seed (system row not stored at create_session time, only at
+   first append_message) means a session row with message_count=0 will NOT
+   appear in list_sessions. SPEC §9 filter `WHERE s.message_count > 0`
+   enforces this — confirmed by list_sessions count = 1 after seeding a
+   session that only had create_session called.

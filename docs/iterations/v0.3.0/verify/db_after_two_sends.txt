@@ -1,0 +1,31 @@
+PRAGMA foreign_keys=OFF;
+BEGIN TRANSACTION;
+CREATE TABLE session (
+  id            TEXT PRIMARY KEY,
+  provider      TEXT NOT NULL,
+  model         TEXT NOT NULL,
+  system_prompt TEXT NOT NULL,
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL,
+  message_count INTEGER NOT NULL DEFAULT 0
+);
+INSERT INTO session VALUES('0db85ec9d47e435a80dc2142b505cb2a','anthropic','test-model','你是 InvestPilot，面向投资研究的个人助手。回答简洁、有条理。你提供研究辅助信息，不构成投资建议。','2026-07-25T14:00:35.268686Z','2026-07-25T14:00:35.273994Z',4);
+CREATE TABLE message (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id TEXT NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+  role       TEXT NOT NULL,
+  content    TEXT NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'final',
+  created_at TEXT NOT NULL,
+  seq        INTEGER NOT NULL,
+  UNIQUE(session_id, seq)
+);
+INSERT INTO message VALUES(1,'0db85ec9d47e435a80dc2142b505cb2a','user','测试问题一','final','2026-07-25T14:00:35.269891Z',1);
+INSERT INTO message VALUES(2,'0db85ec9d47e435a80dc2142b505cb2a','assistant','fake reply (saw 3 msgs)','final','2026-07-25T14:00:35.270878Z',2);
+INSERT INTO message VALUES(3,'0db85ec9d47e435a80dc2142b505cb2a','user','测试问题二','final','2026-07-25T14:00:35.273093Z',3);
+INSERT INTO message VALUES(4,'0db85ec9d47e435a80dc2142b505cb2a','assistant','fake reply (saw 5 msgs)','final','2026-07-25T14:00:35.273994Z',4);
+DELETE FROM sqlite_sequence;
+INSERT INTO sqlite_sequence VALUES('message',4);
+CREATE INDEX idx_session_updated_at ON session(updated_at DESC);
+CREATE INDEX idx_message_session_seq ON message(session_id, seq);
+COMMIT;

@@ -28,15 +28,27 @@ def chat() -> None:
     from investpilot.core.errors import ConfigError
     from investpilot.interface.tui_app import run_tui
     from investpilot.providers.factory import build_provider
+    from investpilot.storage import RepoError, SessionRepository, open_default_db
 
     try:
         cfg = load_config()
     except ConfigError as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from exc
+    try:
+        db_path = open_default_db()
+        repo = SessionRepository(db_path)
+    except RepoError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
     provider = build_provider(cfg)
-    session = ChatSession(provider)
-    run_tui(session, provider=cfg.provider, model=cfg.model)
+    session = ChatSession(
+        provider,
+        provider_name=cfg.provider,
+        model=cfg.model,
+        repo=repo,
+    )
+    run_tui(session, provider=cfg.provider, model=cfg.model, repo=repo)
 
 
 def main() -> None:
