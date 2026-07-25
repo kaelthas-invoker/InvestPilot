@@ -126,8 +126,10 @@ def draw_head() -> Image.Image:
     d.polygon([px(12.4, 0.95), px(13.6, 0.95), px(12.5, 1.8)], fill=PAL_RGB[LIGHT])
 
     # ---- Eyes (round black dots) ----------------------------------------
-    d.ellipse([px(4, 3.6), px(6, 5.6)], fill=PAL_RGB[BLACK])
-    d.ellipse([px(10, 3.6), px(12, 5.6)], fill=PAL_RGB[BLACK])
+    # v0.2.5-mini: each eye shrunk from 2×2 cells to 2×1 cells (1 cell
+    # removed vertically — keeping the same 2-cell width).
+    d.ellipse([px(4, 4.0), px(6, 5.0)], fill=PAL_RGB[BLACK])
+    d.ellipse([px(10, 4.0), px(12, 5.0)], fill=PAL_RGB[BLACK])
 
     # ---- Cheek highlights (cream patches under eyes) -------------------
     d.ellipse([px(3.2, 5.6), px(6.4, 7.0)], fill=PAL_RGB[LIGHT])
