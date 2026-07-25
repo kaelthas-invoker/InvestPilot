@@ -111,6 +111,20 @@ def draw_head() -> Image.Image:
     d.polygon([px(2.4, 0.95), px(3.6, 0.95), px(3.5, 1.8)], fill=PAL_RGB[LIGHT])
     d.polygon([px(12.4, 0.95), px(13.6, 0.95), px(12.5, 1.8)], fill=PAL_RGB[LIGHT])
 
+    # ---- Forehead micro-arc (between the ears, only here) -------------
+    # Per v0.2.4-mini user feedback: keep v0.2.3 design (flat face) but
+    # add **a bit** of arc in the area between the two ear bases.  The
+    # arc is a small top-half chord that occupies cells 4-12 horizontally
+    # and rows 1.5-3 vertically — well inside the ear-free space.
+    d.chord([px(4, 1.5), px(12, 4.0)], 180, 360, fill=PAL_RGB[ORANGE])
+    # Re-paint ears again so the new forehead arc doesn't cover them.
+    d.polygon([px(1, 0.4), px(5, 0.4), px(3.5, 2.4)], fill=PAL_RGB[DARK_O])
+    d.polygon([px(11, 0.4), px(15, 0.4), px(12.5, 2.4)], fill=PAL_RGB[DARK_O])
+    d.polygon([px(2, 0.7), px(4, 0.7), px(3.5, 2.0)], fill=PAL_RGB[ORANGE])
+    d.polygon([px(12, 0.7), px(14, 0.7), px(12.5, 2.0)], fill=PAL_RGB[ORANGE])
+    d.polygon([px(2.4, 0.95), px(3.6, 0.95), px(3.5, 1.8)], fill=PAL_RGB[LIGHT])
+    d.polygon([px(12.4, 0.95), px(13.6, 0.95), px(12.5, 1.8)], fill=PAL_RGB[LIGHT])
+
     # ---- Eyes (round black dots) ----------------------------------------
     d.ellipse([px(4, 3.6), px(6, 5.6)], fill=PAL_RGB[BLACK])
     d.ellipse([px(10, 3.6), px(12, 5.6)], fill=PAL_RGB[BLACK])
