@@ -442,3 +442,281 @@ async def test_resume_blocked_during_stream(tmp_path: Path) -> None:
             if not app._busy:
                 break
         assert not app._busy
+
+
+# -- Execute-B 新增 (status-line) -----------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_status_line_shows_provider_model() -> None:
+    """AC12: 状态行显示 `provider / model`（带空格）。"""
+    app = InvestPilotApp(
+        _FakeSession(), provider_name="anthropic", model="MiniMax-M3"
+    )
+    async with app.run_test():
+        status = app.query_one("#status-line", Static)
+        assert _static_text(status) == "anthropic / MiniMax-M3"
+
+
+@pytest.mark.asyncio
+async def test_status_line_updates_after_resume(tmp_path: Path) -> None:
+    """AC13: /resume 后状态行更新为被恢复 session 的 provider/model。"""
+    repo = SessionRepository(tmp_path / "chat.db")
+    _seed_session(repo, provider="openai", model="gpt-4")
+
+    # 找出唯一的 session_id
+    sessions = repo.list_sessions()
+    assert sessions, "expected at least one seeded session"
+    sid = sessions[0].id
+
+    session = _FakeSession(repo=repo)
+    app = InvestPilotApp(
+        session, title_suffix="anthropic/MiniMax-M3", repo=repo
+    )
+    async with app.run_test() as pilot:
+        # 启动后状态行是 startup 的 provider/model
+        status = app.query_one("#status-line", Static)
+        assert _static_text(status) == "anthropic / MiniMax-M3"
+
+        # 触发 resume load
+        app._on_resume_dismissed(sid)
+        await pilot.pause()
+
+        # 状态行应更新为被恢复 session 的 provider/model
+        assert _static_text(status) == "openai / gpt-4"
+
+
+# -- Execute-C 新增 (bash-style history) ---------------------------------
+
+
+async def _send(app: App, pilot, text: str) -> None:
+    """Helper: set input text, press Enter, wait for worker to finish."""
+    app.query_one("#chat-input", Input).value = text
+    await pilot.press("enter")
+    for _ in range(100):
+        await pilot.pause()
+        if not app._busy:
+            break
+
+
+@pytest.mark.asyncio
+async def test_history_up_recalls_previous() -> None:
+    """AC4/5: Up 替换 input 为前一条；多次 Up 翻到第 1 条后停住。"""
+    app = InvestPilotApp(_FakeSession())
+    async with app.run_test() as pilot:
+        await _send(app, pilot, "msg1")
+        await _send(app, pilot, "msg2")
+        await _send(app, pilot, "msg3")
+
+        inp = app.query_one("#chat-input", Input)
+        inp.value = ""
+        # Up → msg3
+        await pilot.press("up")
+        assert inp.value == "msg3"
+        # Up → msg2
+        await pilot.press("up")
+        assert inp.value == "msg2"
+        # Up → msg1
+        await pilot.press("up")
+        assert inp.value == "msg1"
+        # Up 再次 → 仍 msg1（clamp at start）
+        await pilot.press("up")
+        assert inp.value == "msg1"
+
+
+@pytest.mark.asyncio
+async def test_history_down_advances_and_clears_at_end() -> None:
+    """AC6: Down 在历史中往前；到末尾清空，_history_index 重置为 None。"""
+    app = InvestPilotApp(_FakeSession())
+    async with app.run_test() as pilot:
+        await _send(app, pilot, "a")
+        await _send(app, pilot, "b")
+
+        inp = app.query_one("#chat-input", Input)
+        inp.value = ""
+        # Up 两次 → "a"（index=0）
+        await pilot.press("up")
+        await pilot.press("up")
+        assert inp.value == "a"
+        # Down → "b"（index=1）
+        await pilot.press("down")
+        assert inp.value == "b"
+        # Down 再次 → ""，_history_index 重置为 None
+        await pilot.press("down")
+        assert inp.value == ""
+        assert app._history_index is None
+
+
+@pytest.mark.asyncio
+async def test_history_capped_at_100() -> None:
+    """AC7: 历史容量 100，超出后保留最近 100 条。"""
+    app = InvestPilotApp(_FakeSession())
+    async with app.run_test() as pilot:
+        for i in range(105):
+            await _send(app, pilot, f"m{i}")
+        assert len(app._history) == 100
+        # 第一条是 index=5（即 "m5"），前 5 条已被裁掉
+        assert app._history[0] == "m5"
+        # 最后一条是 index=104
+        assert app._history[-1] == "m104"
+
+
+@pytest.mark.asyncio
+async def test_slash_commands_not_in_history() -> None:
+    """AC8: 斜杠命令不入历史。"""
+    app = InvestPilotApp(_FakeSession())
+    async with app.run_test():
+        # 直接调用 _record_history 验证 /-prefix 过滤逻辑
+        app._record_history("/foo")
+        assert len(app._history) == 0
+        app._record_history("/resume")
+        assert len(app._history) == 0
+
+
+@pytest.mark.asyncio
+async def test_empty_text_not_in_history() -> None:
+    """AC9: 空文本不入历史。"""
+    app = InvestPilotApp(_FakeSession())
+    async with app.run_test():
+        # Empty submit: on_input_submitted 不会进入 _handle_send，
+        # 直接验证 _record_history 过滤空文本。
+        app._record_history("")
+        assert len(app._history) == 0
+
+
+@pytest.mark.asyncio
+async def test_history_mid_edit_keeps_index() -> None:
+    """AC10: 历史回看中手动编辑 input 不重置 _history_index。"""
+    app = InvestPilotApp(_FakeSession())
+    async with app.run_test() as pilot:
+        await _send(app, pilot, "first")
+        await _send(app, pilot, "second")
+
+        inp = app.query_one("#chat-input", Input)
+        inp.value = ""
+        # Up → "second", index=1
+        await pilot.press("up")
+        assert inp.value == "second"
+        assert app._history_index == 1
+
+        # 中途手动编辑 input.value（不通过 binding）— index 应保留
+        inp.value = "second-modified"
+        assert app._history_index == 1
+
+        # Up 再次 → 仍走历史（index 减到 0 → "first"）
+        await pilot.press("up")
+        assert inp.value == "first"
+
+
+@pytest.mark.asyncio
+async def test_resume_clears_history(tmp_path: Path) -> None:
+    """AC11: /resume 加载历史后 _history 清空，_history_index 重置。"""
+    repo = SessionRepository(tmp_path / "chat.db")
+    _seed_session(repo)
+    sid = repo.list_sessions()[0].id
+
+    session = _FakeSession(repo=repo)
+    app = InvestPilotApp(session, title_suffix="fake/model", repo=repo)
+    async with app.run_test() as pilot:
+        await _send(app, pilot, "msg1")
+        await _send(app, pilot, "msg2")
+        assert len(app._history) == 2
+
+        app._on_resume_dismissed(sid)
+        await pilot.pause()
+
+        assert app._history == []
+        assert app._history_index is None
+
+
+# -- Execute-D 新增 (resume 验证 + 移除 hint) -----------------------------
+
+
+@pytest.mark.asyncio
+async def test_resume_modal_arrow_keys_navigate_and_enter_selects(
+    tmp_path: Path,
+) -> None:
+    """AC14: /resume Modal 中 Up/Down/Enter 工作正常。"""
+    from textual.widgets import ListView
+
+    repo = SessionRepository(tmp_path / "chat.db")
+    _seed_session(repo, user_text="一", assistant_text="A")
+    _seed_session(repo, user_text="二", assistant_text="B")
+    _seed_session(repo, user_text="三", assistant_text="C")
+
+    session = _FakeSession(repo=repo)
+    app = InvestPilotApp(session, title_suffix="fake/model", repo=repo)
+    async with app.run_test() as pilot:
+        app.query_one("#chat-input", Input).value = "/resume"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert isinstance(app.screen, ResumeListScreen)
+
+        list_view = app.screen.query_one(ListView)
+        assert list_view.index == 0
+
+        # Down 两次 → index = 2
+        await pilot.press("down")
+        await pilot.pause()
+        assert list_view.index == 1
+        await pilot.press("down")
+        await pilot.pause()
+        assert list_view.index == 2
+
+        # Up → index = 1
+        await pilot.press("up")
+        await pilot.pause()
+        assert list_view.index == 1
+
+        # Enter → 触发 dismiss + load_session（用真键盘，不用 post_message）
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert session._loaded, "expected load_session to be called"
+
+
+@pytest.mark.asyncio
+async def test_resume_modal_focuses_list_view(
+    tmp_path: Path,
+) -> None:
+    """回归测试：Modal 挂载后焦点必须在 ListView，否则 Enter / 方向键走错 widget。
+
+    Bug 现象：focus 留在主屏的 #transcript VerticalScroll，导致用户只能鼠标点击。
+    """
+    from textual.widgets import ListView
+
+    repo = SessionRepository(tmp_path / "chat.db")
+    _seed_session(repo)
+
+    session = _FakeSession(repo=repo)
+    app = InvestPilotApp(session, title_suffix="fake/model", repo=repo)
+    async with app.run_test() as pilot:
+        app.query_one("#chat-input", Input).value = "/resume"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert isinstance(app.screen, ResumeListScreen)
+        # 焦点必须在 ListView
+        assert app.screen.focused is not None
+        assert isinstance(app.screen.focused, ListView), (
+            f"focused widget is {type(app.screen.focused).__name__}, expected ListView"
+        )
+
+
+@pytest.mark.asyncio
+async def test_no_restored_session_hint_after_resume(tmp_path: Path) -> None:
+    """AC15: /resume 后 transcript 不含 '已恢复会话'。"""
+    repo = SessionRepository(tmp_path / "chat.db")
+    sid = _seed_session(repo, user_text="旧问题", assistant_text="旧回答")
+
+    session = _FakeSession(repo=repo)
+    app = InvestPilotApp(session, title_suffix="fake/model", repo=repo)
+    async with app.run_test() as pilot:
+        app._on_resume_dismissed(sid)
+        await pilot.pause()
+
+        all_msgs = [_static_text(w) for w in app.query(".msg")]
+        joined = "\n".join(all_msgs)
+        assert "已恢复会话" not in joined, (
+            f"transcript should not contain '已恢复会话', got: {all_msgs}"
+        )

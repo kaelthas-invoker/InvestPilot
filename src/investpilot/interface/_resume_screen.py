@@ -19,6 +19,8 @@ class ResumeListScreen(ModalScreen[str | None]):
         Binding("q", "dismiss_none", "取消", show=False),
         Binding("j", "cursor_down", "下移", show=False),
         Binding("k", "cursor_up", "上移", show=False),
+        Binding("down", "cursor_down", "下移", show=False, priority=True),
+        Binding("up", "cursor_up", "上移", show=False, priority=True),
     ]
 
     def __init__(self, repo: SessionRepository) -> None:
@@ -43,6 +45,18 @@ class ResumeListScreen(ModalScreen[str | None]):
                 label = f"{preview}  {age_text:>6}"
                 children.append(ListItem(Label(label), id=f"session-{item.id}"))
             yield ListView(*children)
+
+    def on_mount(self) -> None:
+        """Modal 挂载时把焦点交给 ListView，让方向键 + Enter 直接生效。
+
+        不主动 focus 会让焦点留在上一个屏幕（#transcript 的 VerticalScroll），
+        导致 Enter / 方向键走到错误 widget，用户只能靠鼠标点击。
+        """
+        try:
+            self.query_one(ListView).focus()
+        except Exception:
+            # 空列表时没有 ListView，焦点保持默认即可
+            pass
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         item_id = event.item.id or ""

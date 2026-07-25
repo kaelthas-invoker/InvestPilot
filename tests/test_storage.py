@@ -13,6 +13,7 @@ from investpilot.storage import (
     open_default_db,
 )
 from investpilot.storage.db import open_db
+from investpilot.storage.models import RepoError
 from investpilot.storage.schema import apply_schema
 
 
@@ -262,12 +263,96 @@ def test_concurrent_append_no_duplicate_seq(tmp_path: Path) -> None:
 def test_open_default_db_creates_dir_and_is_idempotent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    sqlite_dir = tmp_path / ".invest-pilot" / "storage" / "sqlite"
     path1 = open_default_db()
-    assert path1 == tmp_path / ".invest-pilot" / "chat.db"
+    assert path1 == sqlite_dir / "chat.db"
     assert (tmp_path / ".invest-pilot").is_dir()
-    # DB 文件本身不被创建（由 schema 层负责）
-    assert not path1.exists()
+    assert sqlite_dir.is_dir()
     # 幂等
     path2 = open_default_db()
     assert path2 == path1
+
+
+def test_open_default_db_new_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC1/AC2：返回新路径且 storage/sqlite 目录存在、mode 0o700。"""
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    sqlite_dir = tmp_path / ".invest-pilot" / "storage" / "sqlite"
+
+    path = open_default_db()
+
+    assert path == sqlite_dir / "chat.db"
+    assert sqlite_dir.exists()
+    assert sqlite_dir.is_dir()
+    mode = sqlite_dir.stat().st_mode & 0o777
+    assert mode == 0o700, f"dir mode {oct(mode)} != 0o700"
+
+
+def test_old_db_path_migrates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC3：老路径 chat.db 一次性迁移到新路径，内容保留。"""
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    old_dir = tmp_path / ".invest-pilot"
+    old_dir.mkdir(parents=True)
+    old_db = old_dir / "chat.db"
+    old_db.write_bytes(b"legacy-db-content")
+
+    path = open_default_db()
+
+    new_db = tmp_path / ".invest-pilot" / "storage" / "sqlite" / "chat.db"
+    assert path == new_db
+    assert not old_db.exists()
+    assert new_db.exists()
+    assert new_db.read_bytes() == b"legacy-db-content"
+
+
+def test_migration_includes_wal_shm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC18：迁移同时搬走 chat.db-wal 与 chat.db-shm 边车。"""
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    old_dir = tmp_path / ".invest-pilot"
+    old_dir.mkdir(parents=True)
+    (old_dir / "chat.db").write_bytes(b"main")
+    (old_dir / "chat.db-wal").write_bytes(b"wal")
+    (old_dir / "chat.db-shm").write_bytes(b"shm")
+
+    open_default_db()
+
+    sqlite_dir = tmp_path / ".invest-pilot" / "storage" / "sqlite"
+    for name, content in (
+        ("chat.db", b"main"),
+        ("chat.db-wal", b"wal"),
+        ("chat.db-shm", b"shm"),
+    ):
+        assert not (old_dir / name).exists(), f"old {name} still present"
+        assert (sqlite_dir / name).exists(), f"new {name} missing"
+        assert (sqlite_dir / name).read_bytes() == content
+
+
+def test_migration_residual_raises_repo_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """跨文件系统 copy+delete 失败场景：shutil.move 返回成功但旧文件仍在，
+    _migrate_from_old 的 post-loop 残留断言必须抛 RepoError。"""
+    from investpilot.storage import db as db_mod
+
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    old_dir = tmp_path / ".invest-pilot"
+    old_dir.mkdir(parents=True)
+    old_db = old_dir / "chat.db"
+    old_db.write_bytes(b"x")
+
+    # 模拟 cross-FS 降级：shutil.move 把 src 复制到 target 但保留 src
+    def fake_move(src: str, dst: str) -> str:
+        Path(dst).write_bytes(Path(src).read_bytes())
+        # 故意不删 src（模拟 cross-FS delete 失败）
+        return dst
+
+    monkeypatch.setattr(db_mod.shutil, "move", fake_move)
+
+    with pytest.raises(RepoError, match="迁移后旧文件仍存在"):
+        open_default_db()

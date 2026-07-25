@@ -38,7 +38,7 @@ def _stub_config(tmp_path, monkeypatch):
 
 
 def test_chat_creates_db_on_first_run(tmp_path, monkeypatch):
-    """首次 chat 在 HOME 下创建 ~/.invest-pilot/ 与 ~/.invest-pilot/chat.db。
+    """首次 chat 在 HOME 下创建 ~/.invest-pilot/storage/sqlite/chat.db。
 
     注入 tmp_path 为 HOME；在 chat() 中 ``from … import …`` 的源模块上 stub
     build_provider / run_tui，避免真实模型请求与真实 TUI 启动。
@@ -61,9 +61,11 @@ def test_chat_creates_db_on_first_run(tmp_path, monkeypatch):
     r = runner.invoke(app, ["chat"])
 
     data_dir = tmp_path / ".invest-pilot"
-    db_file = data_dir / "chat.db"
+    sqlite_dir = data_dir / "storage" / "sqlite"
+    db_file = sqlite_dir / "chat.db"
     assert data_dir.exists(), f"data dir not created; output={r.output!r}"
     assert data_dir.is_dir()
+    assert sqlite_dir.is_dir(), f"sqlite dir not created; output={r.output!r}"
     assert db_file.exists(), f"db file not created; output={r.output!r}"
     # SPEC §5：HOME 下数据目录 mode 0o700
     dir_mode = data_dir.stat().st_mode & 0o777

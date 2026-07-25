@@ -1,0 +1,60 @@
+=== STEP 1: DB path is new location + two-level structure ===
+open_default_db() -> /Users/caisiming/.invest-pilot/storage/sqlite/chat.db
+Expected         -> /Users/caisiming/.invest-pilot/storage/sqlite/chat.db
+path == expected : True
+new dir exists   : True
+parent storage/  : True
+
+Directory tree under ~/.invest-pilot/:
+/Users/caisiming/.invest-pilot/
+  storage/
+  storage/sqlite/
+  storage/sqlite/chat.db
+
+=== STEP 2: Migration from old ~/.invest-pilot/chat.db ===
+old db existed   : False
+old db bytes len : 0
+open_default_db() : /Users/caisiming/.invest-pilot/storage/sqlite/chat.db
+old_db still here: False
+old_wal still here: False
+old_shm still here: False
+new db exists    : True
+new wal exists   : True
+new shm exists   : True
+new db bytes     : b'legacy-v0.3.0-payload-abc-123'
+old payload match: True
+new wal bytes    : b'legacy-wal-bytes'
+new shm bytes    : b'legacy-shm-bytes'
+
+=== STEP 3: status-line below input ===
+status text   : 'anthropic / MiniMax-M3'
+expected      : 'anthropic / MiniMax-M3'
+match (eq)    : True
+contains '/'  : True
+
+=== STEP 4: bash-style history ===
+history len    : 3
+history        : ['msg1', 'msg2', 'msg3']
+up sequence    : ['msg3', 'msg2', 'msg1']
+down sequence  : ['msg2', 'msg3', '']
+up ok          : True
+down ok        : True
+history_index  : None
+
+=== STEP 5: /resume modal arrow keys + no hint ===
+initial index    : 0
+after Down x1    : 1
+after Down x2    : 2
+after Up x1      : 1
+svg saved        : /private/var/www/github/InvestPilot/docs/iterations/v0.3.1/verify/resume_modal.svg (exists=True, size=10956)
+dismiss fires    : True (active screen=Screen)
+down ok          : True
+up ok            : True
+
+=== STEP 6: '已恢复会话' hint removed ===
+# .msg widgets   : 3
+  [0] ' ▄███      ████ \n  ▀▀▀▄▄▄▄▄▄██▀  \n  ▄▄████████▄▄  \n ██████████████ \n ███▀█▀███▀█▀██ \n ████▀██▀██▀███ \n ██████████████ \n ▀███▀█████▀██▀ \n███▀▀▀▀▀▀▀▀▀▀███'
+  [1] '你: 旧问题 one'
+  [2] '助手: 旧回答 one'
+contains '已恢复会话': False
+hint removed (not present): True

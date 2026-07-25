@@ -74,14 +74,23 @@ class InvestPilotApp(App[None]):
         margin: 0 0 1 0;
         width: 100%;
     }
+    #status-line {
+        height: 1;
+        color: $text-muted;
+        background: $boost;
+        padding: 0 1;
+    }
     """
 
     BINDINGS = [
         Binding("ctrl+c", "quit", "退出", show=False, priority=True),
         Binding("ctrl+d", "quit", "退出", show=False, priority=True),
+        Binding("up", "history_prev", "上一条", show=False),
+        Binding("down", "history_next", "下一条", show=False),
     ]
 
     MASCOT_INTERVAL_SECONDS = 0.10
+    HISTORY_CAP = 100
 
     def __init__(
         self,
@@ -89,11 +98,21 @@ class InvestPilotApp(App[None]):
         *,
         title_suffix: str = "",
         repo: SessionRepository | None = None,
+        provider_name: str | None = None,
+        model: str | None = None,
     ) -> None:
         super().__init__()
         self._session = session
         self._title_suffix = title_suffix
         self._repo = repo
+        self._provider_name = provider_name or (
+            title_suffix.split("/", 1)[0] if title_suffix else ""
+        )
+        self._model = model or (
+            title_suffix.split("/", 1)[1] if "/" in title_suffix else title_suffix
+        )
+        self._history: list[str] = []
+        self._history_index: int | None = None
         self._busy = False
         self._mascot_timer = None
 
@@ -108,6 +127,7 @@ class InvestPilotApp(App[None]):
             yield Static("", id="mascot", markup=True)
             yield Static("", id="thinking")
             yield Input(placeholder="输入消息，Enter 发送；/quit 退出", id="chat-input")
+            yield Static("", id="status-line")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -127,6 +147,7 @@ class InvestPilotApp(App[None]):
         self._mascot_timer = self.set_interval(
             self.MASCOT_INTERVAL_SECONDS, self._tick_mascot
         )
+        self._refresh_status_line()
 
     def _tick_mascot(self) -> None:
         try:
@@ -169,6 +190,49 @@ class InvestPilotApp(App[None]):
         widget.scroll_visible()
         return widget
 
+    def _refresh_status_line(
+        self, *, provider: str | None = None, model: str | None = None
+    ) -> None:
+        """Update status-line below input. Defaults to startup provider/model."""
+        p = provider if provider is not None else self._provider_name
+        m = model if model is not None else self._model
+        text = f"{p} / {m}" if p and m else (p or m or "")
+        self.query_one("#status-line", Static).update(text)
+
+    def _record_history(self, text: str) -> None:
+        """Append user text to history; trim to cap."""
+        if not text or text.startswith("/"):
+            return
+        self._history.append(text)
+        if len(self._history) > self.HISTORY_CAP:
+            self._history = self._history[-self.HISTORY_CAP:]
+        self._history_index = None
+
+    def _set_input(self, text: str) -> None:
+        inp = self.query_one("#chat-input", Input)
+        inp.value = text
+        # move cursor to end
+        inp.cursor_position = len(text)
+
+    def action_history_prev(self) -> None:
+        if not self._history:
+            return
+        if self._history_index is None:
+            self._history_index = len(self._history) - 1
+        else:
+            self._history_index = max(0, self._history_index - 1)
+        self._set_input(self._history[self._history_index])
+
+    def action_history_next(self) -> None:
+        if self._history_index is None:
+            return
+        if self._history_index + 1 >= len(self._history):
+            self._history_index = None
+            self._set_input("")
+            return
+        self._history_index += 1
+        self._set_input(self._history[self._history_index])
+
     def _clear_transcript_except_logo(self) -> None:
         """保留 transcript 第一条（大 logo），移除其余条目。"""
         scroll = self.query_one("#transcript", VerticalScroll)
@@ -202,6 +266,7 @@ class InvestPilotApp(App[None]):
     async def _handle_send(self, text: str) -> None:
         inp = self.query_one("#chat-input", Input)
         self._busy = True
+        self._record_history(text)
         try:
             self._append_user(text)
             reply = self._append_assistant("")
@@ -247,10 +312,16 @@ class InvestPilotApp(App[None]):
                 self._append_user(m.content)
             elif m.role == "assistant":
                 self._append_assistant(m.content)
+        # /resume 后清零历史（避免与加载对话混淆）
+        self._history = []
+        self._history_index = None
         # 标题和 boot 提示使用被恢复会话的 provider/model
         self._title_suffix = f"{metadata.provider}/{metadata.model}"
         self.title = f"InvestPilot · {self._title_suffix}"
-        self._append_line(f"已恢复会话 · {metadata.provider}/{metadata.model}")
+        # 状态行独立于 _title_suffix，用被恢复 session 的 provider / model
+        self._refresh_status_line(
+            provider=metadata.provider, model=metadata.model
+        )
 
 
 def run_tui(

@@ -1,0 +1,4 @@
+=== find ~/.invest-pilot -type f ===
+$ find ~/.invest-pilot -type f
+/Users/caisiming/.invest-pilot/storage/sqlite/chat.db
+exit_code: 0
