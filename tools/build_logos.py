@@ -391,19 +391,35 @@ def _tail(img: Image.Image, frame: int) -> Image.Image:
 
     # Wipe the existing tail arc area (rightmost columns, vertical band).
     d.rectangle(
-        [px(13.3, 5.3), px(15.7, 7.6)],
+        [px(12.5, 5.0), px(16.0, 8.0)],
         fill=PAL_RGB[1],
     )
 
     # Map frame index to a horizontal offset relative to base.
-    offsets = [0, -0.6, 0, 0.6]  # frame 0/2 = centered
+    # Use full-cell offsets so quantization picks up the swing.
+    offsets = [0, -1.2, 0, 1.2]  # frame 0/2 = centered
     dx = offsets[frame]
 
-    # Draw new tail arc at shifted position.
+    # Draw new tail arc at shifted position. Keep the arc well within the
+    # canvas so the swing is visible from both directions.
+    arc_x0 = 13.0 + dx
+    arc_x1 = 15.5 + dx
+    if dx < 0:
+        # Tail moved left — also erase any leftover on the right side.
+        d.rectangle(
+            [px(arc_x1 + 0.3, 5.0), px(16.0, 8.0)],
+            fill=PAL_RGB[1],
+        )
+    else:
+        # Tail moved right — erase the original left position.
+        d.rectangle(
+            [px(12.5, 5.0), px(arc_x0 - 0.3, 8.0)],
+            fill=PAL_RGB[1],
+        )
     d.arc(
-        [px(13.5 + dx, 5.5), px(15.7 + dx, 7.5)],
+        [px(arc_x0, 5.4), px(arc_x1, 7.6)],
         start=270, end=90,
-        fill=PAL_RGB[2], width=4,
+        fill=PAL_RGB[2], width=5,
     )
     return img
 
@@ -532,7 +548,6 @@ def grid_to_pixels(grid: list[list[int]], cells_h: int, cells_w: int) -> list[li
     the upper and lower half-block characters.
     """
 
-    full_h = cells_h * 2
     rows: list[list[int]] = []
     for cell_y in range(cells_h):
         # Each cell_row holds one palette index per cell.
