@@ -68,24 +68,46 @@ async def test_app_boot_and_send_smoke() -> None:
 
 
 @pytest.mark.asyncio
-async def test_mascot_cycles_through_frames() -> None:
-    """Driving ``_tick_mascot`` repeatedly walks the blink_ear frames.
+async def test_mascot_walks_its_whole_pose_schedule() -> None:
+    """One tick per frame over a full loop must surface every pose.
 
-    v0.2.3 has only the single ``blink_ear`` animation, so a complete
-    cycle is 4 ticks — across them the mascot must render ≥ 2 distinct
-    frames (eyes-open vs eyes-closed at minimum).
+    This is the regression guard for the animation actually running: if the
+    ticker stalled or the schedule collapsed to a single pose, the set of
+    distinct renderings would shrink.
     """
+    from investpilot.interface import logo
+
     app = InvestPilotApp(_FakeSession())
     async with app.run_test():
-        from investpilot.interface import logo
-
+        mascot = app.query_one("#mascot", Static)
+        logo.set_frame(0)
         seen: set[str] = set()
-        for _ in range(8):  # two full loops of 4 frames
-            logo.advance_state()
-            app._tick_mascot()  # noqa: SLF001 — verify harness only
-            from textual.widgets import Static
-
-            mascot = app.query_one("#mascot", Static)
+        for _ in range(logo.FRAME_COUNT):
             seen.add(_static_text(mascot))
-        # At least 2 distinct frame renderings across the loop.
-        assert len(seen) >= 2
+            app._tick_mascot()  # noqa: SLF001 — drives one frame deterministically
+        assert len(seen) == len(set(logo.SCHEDULE))
+
+
+@pytest.mark.asyncio
+async def test_mascot_survives_a_chat_round() -> None:
+    """Sending a message must not disturb the resident mascot."""
+    from investpilot.interface import logo
+
+    app = InvestPilotApp(_FakeSession())
+    async with app.run_test() as pilot:
+        mascot = app.query_one("#mascot", Static)
+        before = _static_text(mascot)
+        assert before.strip()
+
+        app.query_one("#chat-input", Input).value = "你好"
+        await pilot.press("enter")
+        for _ in range(100):
+            await pilot.pause()
+            if not app._busy:
+                break
+
+        # Still mounted, still rendering a scheduled pose.
+        after = _static_text(mascot)
+        assert after.strip()
+        assert any(ch in after for ch in ("▀", "▄", "█"))
+        assert logo.pose_at(logo.get_frame()) in logo.POSES

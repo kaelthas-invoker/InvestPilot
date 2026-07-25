@@ -1,21 +1,19 @@
-"""Half-block orange-cat logo renderer (InvestPilot v0.2.3).
+"""Half-block orange-cat logo renderer.
 
-v0.2.3 user feedback resolved:
-- Big boot logo uses the same 16×9 cells as the mascot (no more 32×18
-  duplicate artwork).
-- Small face has 1-cell padding on every axis.
-- The 5 separate animations collapse into a single ``blink_ear`` 4-frame
-  loop that combines eyes-closing with ears tilting outward.
+Two logos, one geometry (see ``tools/build_logos.py``):
 
-Public API:
-- :data:`PALETTE` — palette colors re-exported for tests.
-- :data:`ANIMATIONS` — animation names (``("blink_ear",)``).
-- :data:`FRAMES_PER_ANIM` — frames per animation (currently 4).
-- :func:`render_head` — static 16×9 cat (used for the boot big logo).
-- :func:`render_small_frame` — single small-logo animation frame.
-- :func:`render_small_static` — current frame per module-level state.
-- :func:`set_small_state` — set state for the static renderer.
-- :func:`advance_state` — bump to the next frame.
+- **Boot big logo** — 16x9 cells, rendered once into the transcript on
+  start-up. Pin-locked artwork; :func:`render_big_head`.
+- **Resident mascot** — 12x7 cells, the same cat redrawn at 75 % scale,
+  animated by a pose schedule; :func:`render_small_frame`.
+
+The mascot animation is "摆耳朵 + 眨眼睛", alternating: the ears wobble
+outward twice, the cat holds still for a beat, then blinks once. The
+schedule in :data:`SCHEDULE` names one pose per tick, so the twelve
+identical hold frames cost no extra bitmaps.
+
+Rendering uses the Unicode half-block characters ``▀`` / ``▄`` so each
+terminal cell carries two stacked pixels of colour.
 """
 
 from __future__ import annotations
@@ -28,31 +26,25 @@ PAL_HEX_LOWER = {idx: c.lower() for idx, c in enumerate(PALETTE) if c is not Non
 HEAD_CELLS_W: int = _logo_assets.HEAD_CELLS_W
 HEAD_CELLS_H: int = _logo_assets.HEAD_CELLS_H
 
-# v0.2.8: the runtime small mascot has been promoted to 8×5 cells
-# (round-ellipse face).  The boot head stays at 16×9.
 SMALL_CELLS_W: int = _logo_assets.SMALL_CELLS_W
 SMALL_CELLS_H: int = _logo_assets.SMALL_CELLS_H
 
-ANIMATIONS: tuple[str, ...] = ("blink_ear",)
-FRAMES_PER_ANIM: int = 4
+POSES: tuple[str, ...] = tuple(_logo_assets.SMALL_POSES)
+SCHEDULE: tuple[str, ...] = tuple(_logo_assets.SMALL_SCHEDULE)
+FRAME_COUNT: int = len(SCHEDULE)
 
 
 def _cell_to_markup(up_idx: int, down_idx: int) -> str:
-    """Render a single cell (two pixel rows) to Rich markup.
+    """Render one cell (two stacked pixels) as Rich markup.
 
-    - Both transparent → ``" "``.
-    - Only top colored → ``▀`` with fg = top.
-    - Only bottom colored → ``▄`` with fg = bottom.
-    - Both same color → full-block ``█``.
-    - Different colors → ``▀`` with ``[fg on bg]`` markup.
+    ``▀`` paints the upper pixel as foreground; a background colour fills
+    the lower one. Transparent pixels fall through to the terminal colour.
     """
     if up_idx == 0 and down_idx == 0:
         return " "
     if up_idx == 0:
-        assert PALETTE[down_idx] is not None
         return f"[{PAL_HEX_LOWER[down_idx]}]▄[/]"
     if down_idx == 0:
-        assert PALETTE[up_idx] is not None
         return f"[{PAL_HEX_LOWER[up_idx]}]▀[/]"
     upper = PAL_HEX_LOWER[up_idx]
     lower = PAL_HEX_LOWER[down_idx]
@@ -62,97 +54,60 @@ def _cell_to_markup(up_idx: int, down_idx: int) -> str:
 
 
 def _render_grid(rows: tuple[tuple[int, ...], ...], cells_w: int, cells_h: int) -> str:
-    """Convert a (cells_h×2 pixel rows) × cells_w grid to markup text."""
-    out_lines: list[str] = []
+    """Fold a ``cells_h*2`` row pixel grid into ``cells_h`` markup lines."""
+    out: list[str] = []
     for cell_y in range(cells_h):
         top = rows[cell_y * 2]
         bot = rows[cell_y * 2 + 1]
-        line_parts = [_cell_to_markup(top[col], bot[col]) for col in range(cells_w)]
-        out_lines.append("".join(line_parts))
-    return "\n".join(out_lines)
+        out.append("".join(_cell_to_markup(top[x], bot[x]) for x in range(cells_w)))
+    return "\n".join(out)
 
 
-def render_head() -> str:
-    """Render the static orange-cat head (16 cells × 9 cell-rows visual = 18 lines)."""
+def render_big_head() -> str:
+    """The boot logo: 16 cells wide, 9 markup lines tall."""
     return _render_grid(_logo_assets.HEAD, HEAD_CELLS_W, HEAD_CELLS_H)
 
 
-# Backwards-compat alias — `render_big_head` was the v0.2.2 name.
-render_big_head = render_head
+def render_pose(pose: str) -> str:
+    """Render one named mascot pose."""
+    grid = _logo_assets.SMALL_POSES.get(pose)
+    if grid is None:
+        raise ValueError(f"unknown pose {pose!r}; expected one of {list(POSES)}")
+    return _render_grid(grid, SMALL_CELLS_W, SMALL_CELLS_H)
 
 
-def _validate_anim_frame(name: str, frame_index: int) -> tuple[int, ...]:
-    if name not in _logo_assets.SMALL_FRAMES:
-        raise ValueError(
-            f"unknown animation {name!r}; expected one of {ANIMATIONS}"
-        )
-    frames = _logo_assets.SMALL_FRAMES[name]
-    idx = frame_index % len(frames)
-    return frames[idx]
+def pose_at(frame_index: int) -> str:
+    """Pose name scheduled for ``frame_index`` (wraps around the loop)."""
+    return SCHEDULE[frame_index % FRAME_COUNT]
 
 
-def render_small_frame(name: str, frame_index: int) -> str:
-    """Render the small orange-cat mascot for one animation frame."""
-    rows = _validate_anim_frame(name, frame_index)
-    return _render_grid(rows, SMALL_CELLS_W, SMALL_CELLS_H)
-
-
-# v0.2.6 size variants — see _logo_assets.SMALL_VARIANT_BASE for grids.
-VARIANT_SIZES: dict[str, tuple[int, int]] = dict(_logo_assets.VARIANT_SIZES)
-
-
-def render_variant(size_label: str) -> str:
-    """Render a size-variant small logo (e.g. ``"12x7"``).
-
-    These variants are matched in style to the v0.2.5-mini big logo but
-    drawn at smaller cell grids for review.
-    """
-    if size_label not in _logo_assets.SMALL_VARIANT_BASE:
-        raise ValueError(
-            f"unknown variant size {size_label!r}; "
-            f"expected one of {list(_logo_assets.SMALL_VARIANT_BASE)}"
-        )
-    cw, ch = VARIANT_SIZES[size_label]
-    rows = _logo_assets.SMALL_VARIANT_BASE[size_label]
-    return _render_grid(rows, cw, ch)
+def render_small_frame(frame_index: int) -> str:
+    """Render the mascot for a given animation frame."""
+    return render_pose(pose_at(frame_index))
 
 
 # ---------------------------------------------------------------------------
-# Module-level state used by the TUI tick loop.
+# Module-level frame cursor driven by the TUI tick.
 # ---------------------------------------------------------------------------
 
-_state: dict[str, int] = {"anim_idx": 0, "frame_idx": 0}
+_state: dict[str, int] = {"frame": 0}
 
 
-def get_state() -> tuple[str, int]:
-    return ANIMATIONS[_state["anim_idx"] % len(ANIMATIONS)], _state["frame_idx"] % FRAMES_PER_ANIM
+def get_frame() -> int:
+    return _state["frame"] % FRAME_COUNT
 
 
-def set_small_state(name: str, frame_index: int) -> None:
-    """Override the static-renderer state. Mainly for tests."""
-    if name not in ANIMATIONS:
-        raise ValueError(f"unknown animation {name!r}")
-    _state["anim_idx"] = ANIMATIONS.index(name)
-    _state["frame_idx"] = frame_index
+def set_frame(frame_index: int) -> None:
+    """Jump the cursor to a frame. Used by tests and the screenshot harness."""
+    _state["frame"] = frame_index % FRAME_COUNT
 
 
-# Backwards-compat alias (kept for the test suite naming convenience).
-set_state = set_small_state
-
-
-def advance_state() -> tuple[str, int]:
-    """Advance to the next frame; roll over to next animation at end.
-
-    With only one animation it simply walks 0 → 1 → 2 → 3 → 0.
-    """
-    _state["frame_idx"] += 1
-    if _state["frame_idx"] >= FRAMES_PER_ANIM:
-        _state["frame_idx"] = 0
-        _state["anim_idx"] = (_state["anim_idx"] + 1) % len(ANIMATIONS)
-    return get_state()
+def advance_frame() -> int:
+    """Step to the next frame and return the new index."""
+    _state["frame"] = (_state["frame"] + 1) % FRAME_COUNT
+    return _state["frame"]
 
 
 def render_small_static() -> str:
-    """Render the small mascot using the current module state."""
-    name, idx = get_state()
-    return render_small_frame(name, idx)
+    """Render the mascot at the current cursor position."""
+    return render_small_frame(get_frame())

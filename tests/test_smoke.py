@@ -17,7 +17,7 @@ def runner() -> CliRunner:
 
 
 def test_invest_pilot_status_runs_via_subprocess() -> None:
-    """invest-pilot status 通过子进程跑应退出码 0 且输出含 InvestPilot v0.2."""
+    """invest-pilot status 通过子进程跑应退出码 0 且第 1 行含当前版本号."""
     result = subprocess.run(
         [sys.executable, "-m", "investpilot", "status"],
         capture_output=True,
@@ -27,7 +27,10 @@ def test_invest_pilot_status_runs_via_subprocess() -> None:
     assert result.returncode == 0, f"非零退出码 {result.returncode}\nstderr={result.stderr}"
     lines = result.stdout.strip().splitlines()
     assert len(lines) >= 3, f"应至少 3 行输出，实际 {len(lines)} 行: {result.stdout!r}"
-    assert "InvestPilot v0.2" in lines[0], f"第 1 行缺少版本: {lines[0]!r}"
+    import investpilot
+
+    expected = f"InvestPilot v{investpilot.__version__}"
+    assert expected in lines[0], f"第 1 行缺少版本 {expected}: {lines[0]!r}"
     assert lines[1].startswith("20"), f"第 2 行应为 UTC ISO 时间: {lines[1]!r}"
     assert lines[2].startswith("Python 3."), f"第 3 行应为 Python 版本: {lines[2]!r}"
 
@@ -38,7 +41,9 @@ def test_invest_pilot_status_via_cli_runner(runner: CliRunner) -> None:
     assert result.exit_code == 0, f"非零退出码 {result.exit_code}\noutput={result.output}"
     lines = result.output.strip().splitlines()
     assert len(lines) >= 3, f"应至少 3 行输出，实际 {len(lines)} 行: {result.output!r}"
-    assert "InvestPilot v0.2" in lines[0]
+    import investpilot
+
+    assert f"InvestPilot v{investpilot.__version__}" in lines[0]
     assert lines[1].startswith("20")
     assert lines[2].startswith("Python 3.")
 
@@ -52,7 +57,7 @@ def test_invest_pilot_help_via_cli_runner(runner: CliRunner) -> None:
 
 
 def test_package_version() -> None:
-    """investpilot.__version__ 应等于 '0.2.3'."""
+    """investpilot.__version__ 应等于 '0.3.0'."""
     import investpilot
 
-    assert investpilot.__version__ == "0.2.3"
+    assert investpilot.__version__ == "0.3.0"

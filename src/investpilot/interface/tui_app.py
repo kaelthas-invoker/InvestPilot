@@ -84,17 +84,16 @@ class InvestPilotApp(App[None]):
 
     def on_mount(self) -> None:
         # Mount the orange-cat boot logo as the first transcript line.
-        # v0.2.3: boot logo uses the same 16×9 cat artwork as the mascot.
-        head = Static(logo.render_head(), classes="msg", markup=True)
+        head = Static(logo.render_big_head(), classes="msg", markup=True)
         self.query_one("#transcript", VerticalScroll).mount(head)
         self._append_line("InvestPilot 投研助手（研究辅助，不构成投资建议）")
         if self._title_suffix:
             self._append_line(f"模型: {self._title_suffix}")
         self.query_one("#chat-input", Input).focus()
 
-        # Start the resident mascot ticker. v0.2.3 only has a single
-        # blink+ear animation (4 frames looped at 0.4s/cycle).
-        logo.set_small_state(logo.ANIMATIONS[0], 0)
+        # Start the resident mascot ticker. The schedule walks a 24-frame
+        # loop: ears wobble, hold, then one blink (see interface/logo.py).
+        logo.set_frame(0)
         mascot = self.query_one("#mascot", Static)
         mascot.update(logo.render_small_static())
         self._mascot_timer = self.set_interval(
@@ -103,9 +102,10 @@ class InvestPilotApp(App[None]):
 
     def _tick_mascot(self) -> None:
         try:
-            logo.advance_state()
+            logo.advance_frame()
             self.query_one("#mascot", Static).update(logo.render_small_static())
         except Exception:
+            # Widget detached (app shutting down) — stop the timer quietly.
             mascot_timer = getattr(self, "_mascot_timer", None)
             if mascot_timer is not None:
                 mascot_timer.stop()
